@@ -1,7 +1,7 @@
-version: '3.8'
+version: "3.8"
 services:
   alltalk-tts:
-    image: erew123/alltalk_tts:cuda
+    image: alltalk_tts:cuda
     restart: unless-stopped
     ports:
       - "7851:7851"
@@ -17,4 +17,4 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [ gpu ]
+              capabilities: [gpu]

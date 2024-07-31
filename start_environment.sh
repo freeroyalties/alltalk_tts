@@ -11,7 +11,7 @@ export PYTHONNOUSERSITE=1
 unset PYTHONPATH
 unset PYTHONHOME
 export CUDA_PATH="/home/mark/voice/alltalk_tts/alltalk_environment/env"
-export CUDA_HOME=""
-export LD_LIBRARY_PATH=/home/mark/voice/ai-voice-cloning/venv/lib/python3.10/site-packages/nvidia/cublas/lib:/home/mark/voice/ai-voice-cloning/venv/lib/python3.10/site-packages/nvidia/cudnn/lib
+export CUDA_HOME="/home/mark/voice/alltalk_tts/alltalk_environment/env"
+export LD_LIBRARY_PATH=/home/mark/voice/alltalk_tts/alltalk_environment/env/lib/python3.11/site-packages/nvidia/cublas/lib:/home/mark/voice/alltalk_tts/alltalk_environment/env/lib/python3.11/site-packages/nvidia/cudnn/lib
 # activate env
 bash --init-file <(echo "source \"/home/mark/voice/alltalk_tts/alltalk_environment/conda/etc/profile.d/conda.sh\" && conda activate \"/home/mark/voice/alltalk_tts/alltalk_environment/env\"")

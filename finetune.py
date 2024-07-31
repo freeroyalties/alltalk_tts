@@ -21,21 +21,22 @@ import glob
 import json
 from pathlib import Path
 from tqdm import tqdm
-from faster_whisper import WhisperModel  
+from faster_whisper import WhisperModel
+
 # Use a local Tokenizer to resolve Japanese support
 # from TTS.tts.layers.xtts.tokenizer import multilingual_cleaners
 from system.ft_tokenizer.tokenizer import multilingual_cleaners
 import importlib.metadata as metadata
 from packaging import version
 
-# STARTUP VARIABLES 
+# STARTUP VARIABLES
 this_dir = Path(__file__).parent.resolve()
 audio_folder = this_dir / "finetune" / "put-voice-samples-in-here"
 out_path = this_dir / "finetune" / "tmp-trn"
 progress = 0
 theme = gr.themes.Default()
-refresh_symbol = '🔄'
-os.environ['TRAINER_TELEMETRY'] = '0'
+refresh_symbol = "🔄"
+os.environ["TRAINER_TELEMETRY"] = "0"
 pfc_status = "pass"
 
 # Define the path to the modeldownload config file file
@@ -52,7 +53,9 @@ if modeldownload_config_file_path.exists():
     files_to_download = settings.get("files_to_download", {})
 else:
     # Default settings if the JSON file doesn't exist or is empty
-    print("[FINETUNE]  \033[91mWarning\033[0m modeldownload.json is missing. Please run this script in the /alltalk_tts/ folder")
+    print(
+        "[FINETUNE]  \033[91mWarning\033[0m modeldownload.json is missing. Please run this script in the /alltalk_tts/ folder"
+    )
     sys.exit(1)
 
 ##################################################
@@ -65,13 +68,22 @@ finetuned_model = trained_model_directory.exists()
 # If the directory exists, check for the existence of the required files
 # If true, this will add a extra option in the Gradio interface for loading Xttsv2 FT
 if finetuned_model:
-    required_files = ["model.pth", "config.json", "vocab.json", "mel_stats.pth", "dvae.pth"]
-    finetuned_model = all((trained_model_directory / file).exists() for file in required_files)
+    required_files = [
+        "model.pth",
+        "config.json",
+        "vocab.json",
+        "mel_stats.pth",
+        "dvae.pth",
+    ]
+    finetuned_model = all(
+        (trained_model_directory / file).exists() for file in required_files
+    )
 basemodel_or_finetunedmodel = True
 
 #######################
 #### DIAGS for PFC ####
 #######################
+
 
 def check_disk_space():
     global pfc_status
@@ -85,7 +97,7 @@ def check_disk_space():
     is_more_than_18gb = free_space_gb > 18
     disk_space_icon = "✅"
     if not is_more_than_18gb:
-        disk_space_icon ="❌"
+        disk_space_icon = "❌"
         pfc_status = "fail"  # Update global status if disk space check fails
     # Generating the markdown text for disk space check
     disk_space_markdown = f"""
@@ -94,9 +106,10 @@ def check_disk_space():
     """
     return disk_space_markdown
 
+
 def test_cuda():
     global pfc_status
-    cuda_home = os.environ.get('CUDA_HOME', 'N/A')
+    cuda_home = os.environ.get("CUDA_HOME", "N/A")
     cuda_available = torch.cuda.is_available()
     if cuda_available:
         try:
@@ -111,7 +124,8 @@ def test_cuda():
     else:
         cuda_status = "CUDA is not available."
         pfc_status = "fail"  # Update global status
-    return cuda_status, cuda_icon, cuda_home 
+    return cuda_status, cuda_icon, cuda_home
+
 
 def find_files_in_path_with_wildcard(pattern):
     # Get the site-packages directory of the current Python environment
@@ -133,26 +147,29 @@ def find_files_in_path_with_wildcard(pattern):
                 found_paths.append(file_path)
     return found_paths
 
+
 def generate_cuda_markdown():
     global pfc_status
     cuda_status, cuda_icon, cuda_home = test_cuda()
-    file_name = 'cublas64_11.*' if platform.system() == "Windows" else 'libcublas.so.11*'
+    file_name = (
+        "cublas64_11.*" if platform.system() == "Windows" else "libcublas.so.11*"
+    )
     found_paths = find_files_in_path_with_wildcard(file_name)
     if found_paths:
-        found_paths_str = ' '.join(found_paths)
-        found_path_icon = '✅'
+        found_paths_str = " ".join(found_paths)
+        found_path_icon = "✅"
     else:
         found_paths_str = "cublas64_11 is not accessible."
-        found_path_icon = '❌'
+        found_path_icon = "❌"
         pfc_status = "fail"  # Update global status
         # Check if 'cu118' or 'cu121' is in the PyTorch version string
     pytorch_version = torch.__version__
-    if 'cu118' in pytorch_version or 'cu121' in pytorch_version:
-        pytorch_cuda_version_status = ''
-        pytorch_icon = '✅'
+    if "cu118" in pytorch_version or "cu121" in pytorch_version:
+        pytorch_cuda_version_status = ""
+        pytorch_icon = "✅"
     else:
-        pytorch_cuda_version_status = 'Pytorch CUDA version problem '
-        pytorch_icon = '❌'
+        pytorch_cuda_version_status = "Pytorch CUDA version problem "
+        pytorch_icon = "❌"
         pfc_status = "fail"  # Update global status
     cuda_markdown = f"""
     ### 🟨 <u>CUDA Information</u><br>
@@ -166,11 +183,12 @@ def generate_cuda_markdown():
     """
     return cuda_markdown, pytorch_markdown
 
+
 def get_system_ram_markdown():
     global pfc_status
     virtual_memory = psutil.virtual_memory()
-    total_ram_gb = virtual_memory.total / (1024 ** 3)
-    available_ram_gb = virtual_memory.available / (1024 ** 3)
+    total_ram_gb = virtual_memory.total / (1024**3)
+    available_ram_gb = virtual_memory.available / (1024**3)
     used_ram_percentage = virtual_memory.percent
 
     # Check if the available RAM is less than 8GB
@@ -182,12 +200,14 @@ def get_system_ram_markdown():
 
     if torch.cuda.is_available():
         gpu_device_id = torch.cuda.current_device()
-        gpu_device_name = torch.cuda.get_device_name(gpu_device_id) 
+        gpu_device_name = torch.cuda.get_device_name(gpu_device_id)
         # Get the total and available memory in bytes, then convert to GB
-        gpu_total_mem_gb = torch.cuda.get_device_properties(gpu_device_id).total_memory / (1024 ** 3)
+        gpu_total_mem_gb = torch.cuda.get_device_properties(
+            gpu_device_id
+        ).total_memory / (1024**3)
         # gpu_available_mem_gb = (torch.cuda.get_device_properties(gpu_device_id).total_memory - torch.cuda.memory_allocated(gpu_device_id)) / (1024 ** 3)
         # gpu_available_mem_gb = (torch.cuda.get_device_properties(gpu_device_id).total_memory - torch.cuda.memory_reserved(gpu_device_id)) / (1024 ** 3)
-        gpu_reserved_mem_gb = torch.cuda.memory_reserved(gpu_device_id) / (1024 ** 3)
+        gpu_reserved_mem_gb = torch.cuda.memory_reserved(gpu_device_id) / (1024**3)
         gpu_available_mem_gb = gpu_total_mem_gb - gpu_reserved_mem_gb
         # Check if total or available memory is less than 11 GB and set icons
         gpu_total_status_icon = "⚠️" if gpu_total_mem_gb < 12 else "✅"
@@ -225,18 +245,23 @@ def check_base_model(base_model_path, files_to_download):
             pfc_status = "fail"
     return len(missing_files) == 0
 
+
 # Assuming base_model_path and files_to_download are set from the JSON config as shown above
 base_model_detected = check_base_model(base_model_path, files_to_download)
 
+
 def generate_base_model_markdown(base_model_detected):
     global pfc_status
-    base_model_status = 'Base model detected' if base_model_detected else 'Base model not detected'
-    base_model_icon = '✅' if base_model_detected else '❌'
+    base_model_status = (
+        "Base model detected" if base_model_detected else "Base model not detected"
+    )
+    base_model_icon = "✅" if base_model_detected else "❌"
     base_model_markdown = f"""
     ### ⬛ <u>XTTS Base Model Detection</u>
     &nbsp;&nbsp;&nbsp;&nbsp; {base_model_icon} **Base XTTS Model Status:** {base_model_status}
     """
     return base_model_markdown
+
 
 def check_tts_version(required_version="0.22.0"):
     global pfc_status
@@ -261,6 +286,7 @@ def check_tts_version(required_version="0.22.0"):
     """
     return tts_markdown
 
+
 # Disk space check results to append to the Markdown
 disk_space_results = check_disk_space()
 cuda_results, pytorch_results = generate_cuda_markdown()
@@ -268,57 +294,87 @@ system_ram_results = get_system_ram_markdown()
 base_model_results = generate_base_model_markdown(base_model_detected)
 tts_version_status = check_tts_version()
 
+
 def pfc_check_fail():
     global pfc_status
     if pfc_status == "fail":
         print("[FINETUNE]")
-        print("[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m")
-        print("[FINETUNE] \033[91m* Please refer to the \033[93mPre-flight check tab \033[91mand resolve any issues before continuing. *\033[0m")
-        print("[FINETUNE] \033[91m*********** Expect errors and failures if you do not resolve these issues. ***********\033[0m")
+        print(
+            "[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m"
+        )
+        print(
+            "[FINETUNE] \033[91m* Please refer to the \033[93mPre-flight check tab \033[91mand resolve any issues before continuing. *\033[0m"
+        )
+        print(
+            "[FINETUNE] \033[91m*********** Expect errors and failures if you do not resolve these issues. ***********\033[0m"
+        )
         print("[FINETUNE]")
     return
+
 
 #####################
 #### STEP 1 BITS ####
 #####################
 
+
 def create_temp_folder():
-    temp_folder = os.path.join(os.path.dirname(__file__), 'temp_files')
+    temp_folder = os.path.join(os.path.dirname(__file__), "temp_files")
     os.makedirs(temp_folder, exist_ok=True)
     return temp_folder
 
+
 def create_temporary_file(folder, suffix=".wav"):
-    unique_filename = f"custom_tempfile_{int(time.time())}_{random.randint(1, 1000)}{suffix}"
+    unique_filename = (
+        f"custom_tempfile_{int(time.time())}_{random.randint(1, 1000)}{suffix}"
+    )
     return os.path.join(folder, unique_filename)
 
-def format_audio_list(target_language, whisper_model, out_path, eval_split_number, speaker_name_input, gradio_progress=progress):
+
+def format_audio_list(
+    target_language,
+    whisper_model,
+    out_path,
+    eval_split_number,
+    speaker_name_input,
+    gradio_progress=progress,
+):
     pfc_check_fail()
-    audio_files = [os.path.join(audio_folder, file) for file in os.listdir(audio_folder) if file.endswith(('.mp3', '.flac', '.wav'))]
-    buffer=0.2
+    audio_files = [
+        os.path.join(audio_folder, file)
+        for file in os.listdir(audio_folder)
+        if file.endswith((".mp3", ".flac", ".wav"))
+    ]
+    buffer = 0.2
     eval_percentage = eval_split_number / 100.0
-    speaker_name=speaker_name_input
+    speaker_name = speaker_name_input
     audio_total_size = 0
     os.makedirs(out_path, exist_ok=True)
     temp_folder = os.path.join(out_path, "temp")  # Update with your folder name
     os.makedirs(temp_folder, exist_ok=True)
-    print("[FINETUNE] \033[94mPart of AllTalk\033[0m https://github.com/erew123/alltalk_tts/")
+    print(
+        "[FINETUNE] \033[94mPart of AllTalk\033[0m https://github.com/erew123/alltalk_tts/"
+    )
     print("[FINETUNE] \033[94mCoqui Public Model License\033[0m")
     print("[FINETUNE] \033[94mhttps://coqui.ai/cpml.txt\033[0m")
-    print(f"[FINETUNE] \033[94mWhisper model: \033[92m{whisper_model} \033[94mLanguage: \033[92m{target_language} \033[94mEvaluation data percentage: \033[92m{eval_split_number}%\033[0m")
-    print("[FINETUNE] \033[94mStarting Step 1\033[0m - Preparing Audio/Generating the dataset")
+    print(
+        f"[FINETUNE] \033[94mWhisper model: \033[92m{whisper_model} \033[94mLanguage: \033[92m{target_language} \033[94mEvaluation data percentage: \033[92m{eval_split_number}%\033[0m"
+    )
+    print(
+        "[FINETUNE] \033[94mStarting Step 1\033[0m - Preparing Audio/Generating the dataset"
+    )
     # Write the target language to lang.txt in the output directory
     lang_file_path = os.path.join(out_path, "lang.txt")
 
     # Check if lang.txt already exists and contains a different language
     current_language = None
     if os.path.exists(lang_file_path):
-        with open(lang_file_path, 'r', encoding='utf-8') as existing_lang_file:
+        with open(lang_file_path, "r", encoding="utf-8") as existing_lang_file:
             current_language = existing_lang_file.read().strip()
 
     if current_language != target_language:
         # Only update lang.txt if target language is different from the current language
-        with open(lang_file_path, 'w', encoding='utf-8') as lang_file:
-            lang_file.write(target_language + '\n')
+        with open(lang_file_path, "w", encoding="utf-8") as lang_file:
+            lang_file.write(target_language + "\n")
         print("[FINETUNE] Updated lang.txt with the target language.")
     else:
         print("[FINETUNE] The existing language matches the target language")
@@ -327,45 +383,51 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     print("[FINETUNE] Loading Whisper Model:", whisper_model)
-    print("[FINETUNE] Model will be downloaded if its not available, which will take a few minutes.")
+    print(
+        "[FINETUNE] Model will be downloaded if its not available, which will take a few minutes."
+    )
     asr_model = WhisperModel(whisper_model, device=device, compute_type="float32")
 
     metadata = {"audio_file": [], "text": [], "speaker_name": []}
 
-    existing_metadata = {'train': None, 'eval': None}
+    existing_metadata = {"train": None, "eval": None}
     train_metadata_path = os.path.join(out_path, "metadata_train.csv")
     eval_metadata_path = os.path.join(out_path, "metadata_eval.csv")
 
     if os.path.exists(train_metadata_path):
-        existing_metadata['train'] = pandas.read_csv(train_metadata_path, sep="|")
+        existing_metadata["train"] = pandas.read_csv(train_metadata_path, sep="|")
         print("[FINETUNE] Existing training metadata found and loaded.")
 
     if os.path.exists(eval_metadata_path):
-        existing_metadata['eval'] = pandas.read_csv(eval_metadata_path, sep="|")
+        existing_metadata["eval"] = pandas.read_csv(eval_metadata_path, sep="|")
         print("[FINETUNE] Existing evaluation metadata found and loaded.")
 
     for idx, audio_path in tqdm(enumerate(audio_files)):
         if isinstance(audio_path, str):
-            audio_file_name_without_ext, _ = os.path.splitext(os.path.basename(audio_path))
+            audio_file_name_without_ext, _ = os.path.splitext(
+                os.path.basename(audio_path)
+            )
             # If it's a string, it's already the path to the file
             audio_path_name = audio_path
-        elif hasattr(audio_path, 'read'):
+        elif hasattr(audio_path, "read"):
             # If it has a 'read' attribute, treat it as a file-like object
             # and use a temporary file to save its content
-            audio_file_name_without_ext, _ = os.path.splitext(os.path.basename(audio_path.name))
+            audio_file_name_without_ext, _ = os.path.splitext(
+                os.path.basename(audio_path.name)
+            )
             audio_path_name = create_temporary_file(temp_folder)
-            with open(audio_path, 'rb') as original_file:
+            with open(audio_path, "rb") as original_file:
                 file_content = original_file.read()
-            with open(audio_path_name, 'wb') as temp_file:
-                    temp_file.write(file_content)
+            with open(audio_path_name, "wb") as temp_file:
+                temp_file.write(file_content)
 
         # Create a temporary file path within the new folder
         temp_audio_path = create_temporary_file(temp_folder)
-
+        print(f"{temp_audio_path = }")
         try:
             if isinstance(audio_path, str):
                 audio_path_name = audio_path
-            elif hasattr(audio_path, 'name'):
+            elif hasattr(audio_path, "name"):
                 audio_path_name = audio_path.name
             else:
                 raise ValueError(f"Unsupported audio_path type: {type(audio_path)}")
@@ -390,12 +452,14 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
         # Check both training and evaluation metadata for an entry that starts with the file name.
         skip_processing = False
 
-        for key in ['train', 'eval']:
+        for key in ["train", "eval"]:
             if existing_metadata[key] is not None:
-                mask = existing_metadata[key]['audio_file'].str.startswith(prefix_check)
+                mask = existing_metadata[key]["audio_file"].str.startswith(prefix_check)
 
                 if mask.any():
-                    print(f"[FINETUNE] Segments from {audio_file_name_without_ext} have been previously processed; skipping...")
+                    print(
+                        f"[FINETUNE] Segments from {audio_file_name_without_ext} have been previously processed; skipping..."
+                    )
                     skip_processing = True
                     break
 
@@ -409,9 +473,11 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
             wav = torch.mean(wav, dim=0, keepdim=True)
 
         wav = wav.squeeze()
-        audio_total_size += (wav.size(-1) / sr)
+        audio_total_size += wav.size(-1) / sr
 
-        segments, _ = asr_model.transcribe(audio_path, vad_filter=True, word_timestamps=True, language=target_language)
+        segments, _ = asr_model.transcribe(
+            audio_path, vad_filter=True, word_timestamps=True, language=target_language
+        )
         segments = list(segments)
         i = 0
         sentence = ""
@@ -429,12 +495,17 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
                 sentence_start = word.start
                 # If it is the first sentence, add buffer or get the beginning of the file
                 if word_idx == 0:
-                    sentence_start = max(sentence_start - buffer, 0)  # Add buffer to the sentence start
+                    sentence_start = max(
+                        sentence_start - buffer, 0
+                    )  # Add buffer to the sentence start
                 else:
                     # get the previous sentence end
                     previous_word_end = words_list[word_idx - 1].end
                     # add buffer or get the silence middle between the previous sentence and the current one
-                    sentence_start = max(sentence_start - buffer, (previous_word_end + sentence_start) / 2)
+                    sentence_start = max(
+                        sentence_start - buffer,
+                        (previous_word_end + sentence_start) / 2,
+                    )
 
                 sentence = word.word
                 first_word = False
@@ -464,14 +535,10 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
                 i += 1
                 first_word = True
 
-                audio = wav[int(sr * sentence_start):int(sr * word_end)].unsqueeze(0)
+                audio = wav[int(sr * sentence_start) : int(sr * word_end)].unsqueeze(0)
                 # if the audio is too short, ignore it (i.e., < 0.33 seconds)
                 if audio.size(-1) >= sr / 3:
-                    torchaudio.save(
-                        absolute_path,
-                        audio,
-                        sr
-                    )
+                    torchaudio.save(absolute_path, audio, sr)
                 else:
                     continue
 
@@ -482,16 +549,24 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
         os.remove(temp_audio_path)
 
     if os.path.exists(train_metadata_path) and os.path.exists(eval_metadata_path):
-        existing_train_df = existing_metadata['train']
-        existing_eval_df = existing_metadata['eval']
+        existing_train_df = existing_metadata["train"]
+        existing_eval_df = existing_metadata["eval"]
         audio_total_size = 121
     else:
-        existing_train_df = pandas.DataFrame(columns=["audio_file", "text", "speaker_name"])
-        existing_eval_df = pandas.DataFrame(columns=["audio_file", "text", "speaker_name"])
+        existing_train_df = pandas.DataFrame(
+            columns=["audio_file", "text", "speaker_name"]
+        )
+        existing_eval_df = pandas.DataFrame(
+            columns=["audio_file", "text", "speaker_name"]
+        )
 
     new_data_df = pandas.DataFrame(metadata)
 
-    combined_train_df = pandas.concat([existing_train_df, new_data_df], ignore_index=True).drop_duplicates().reset_index(drop=True)
+    combined_train_df = (
+        pandas.concat([existing_train_df, new_data_df], ignore_index=True)
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
 
     combined_train_df_shuffled = combined_train_df.sample(frac=1)
     num_val_samples = int(len(combined_train_df_shuffled) * eval_percentage)
@@ -499,8 +574,12 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
     final_eval_set = combined_train_df_shuffled[:num_val_samples]
     final_training_set = combined_train_df_shuffled[num_val_samples:]
 
-    final_training_set.sort_values('audio_file').to_csv(train_metadata_path, sep='|', index=False)
-    final_eval_set.sort_values('audio_file').to_csv(eval_metadata_path, sep='|', index=False)
+    final_training_set.sort_values("audio_file").to_csv(
+        train_metadata_path, sep="|", index=False
+    )
+    final_eval_set.sort_values("audio_file").to_csv(
+        eval_metadata_path, sep="|", index=False
+    )
 
     # deallocate VRAM and RAM
     del asr_model, final_eval_set, final_training_set, new_data_df, existing_metadata
@@ -514,6 +593,7 @@ def format_audio_list(target_language, whisper_model, out_path, eval_split_numbe
     print("[FINETUNE] Audio Total:", audio_total_size)
     return train_metadata_path, eval_metadata_path, audio_total_size
 
+
 ######################
 #### STEP 2 BITS #####
 ######################
@@ -522,18 +602,34 @@ from trainer import Trainer, TrainerArgs
 
 from TTS.config.shared_configs import BaseDatasetConfig
 from TTS.tts.datasets import load_tts_samples
-from TTS.tts.layers.xtts.trainer.gpt_trainer import GPTArgs, GPTTrainer, GPTTrainerConfig, XttsAudioConfig
+from TTS.tts.layers.xtts.trainer.gpt_trainer import (
+    GPTArgs,
+    GPTTrainer,
+    GPTTrainerConfig,
+    XttsAudioConfig,
+)
 from TTS.utils.manage import ModelManager
 
 
 def basemodel_or_finetunedmodel_choice(value):
-    global basemodel_or_finetunedmodel 
+    global basemodel_or_finetunedmodel
     if value == "Base Model":
         basemodel_or_finetunedmodel = True
     elif value == "Existing finetuned model":
         basemodel_or_finetunedmodel = False
 
-def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv, learning_rate, output_path, max_audio_length=255995):
+
+def train_gpt(
+    language,
+    num_epochs,
+    batch_size,
+    grad_acumm,
+    train_csv,
+    eval_csv,
+    learning_rate,
+    output_path,
+    max_audio_length=255995,
+):
     pfc_check_fail()
     #  Logging parameters
     RUN_NAME = "XTTS_FT"
@@ -544,25 +640,46 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
     # Set here the path that the checkpoints will be saved. Default: ./training/
     OUT_PATH = os.path.join(output_path, "training")
     print("[FINETUNE] \033[94mStarting Step 2\033[0m - Fine-tuning the XTTS Encoder")
-    print(f"[FINETUNE] \033[94mLanguage: \033[92m{language} \033[94mEpochs: \033[92m{num_epochs} \033[94mBatch size: \033[92m{batch_size}\033[0m \033[94mGrad accumulation steps: \033[92m{grad_acumm}\033[0m")
+    print(
+        f"[FINETUNE] \033[94mLanguage: \033[92m{language} \033[94mEpochs: \033[92m{num_epochs} \033[94mBatch size: \033[92m{batch_size}\033[0m \033[94mGrad accumulation steps: \033[92m{grad_acumm}\033[0m"
+    )
     print(f"[FINETUNE] \033[94mTraining   : \033[92m{train_csv}\033[0m")
     print(f"[FINETUNE] \033[94mEvaluation : \033[92m{eval_csv}\033[0m")
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-		# Get the current device ID
+        # Get the current device ID
         gpu_device_id = torch.cuda.current_device()
-        gpu_available_mem_gb = (torch.cuda.get_device_properties(gpu_device_id).total_memory - torch.cuda.memory_allocated(gpu_device_id)) / (1024 ** 3)
-        print(f"[FINETUNE] \033[94mAvailable VRAM: \033[92m{gpu_available_mem_gb:.2f} GB\033[0m")
+        gpu_available_mem_gb = (
+            torch.cuda.get_device_properties(gpu_device_id).total_memory
+            - torch.cuda.memory_allocated(gpu_device_id)
+        ) / (1024**3)
+        print(
+            f"[FINETUNE] \033[94mAvailable VRAM: \033[92m{gpu_available_mem_gb:.2f} GB\033[0m"
+        )
         if gpu_available_mem_gb < 12:
             print(f"[FINETUNE]")
-            print(f"[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m")
-            print(f"[FINETUNE] \033[94mAvailable VRAM: \033[92m{gpu_available_mem_gb:.2f} GB\033[0m")
-            print(f"[FINETUNE] \033[94mIf you are running on a Linux system and you have 12GB's or less of VRAM, this step\033[0m")
-            print(f"[FINETUNE] \033[94mmay fail, due to not enough GPU VRAM. Windows systems will use system RAM as extended\033[0m")
-            print(f"[FINETUNE] \033[94mVRAM and so should work ok. However, Windows machines will need enough System RAM\033[0m")
-            print(f"[FINETUNE] \033[94mavailable. Please read the PFC help section available on the first tab of the web\033[0m")
+            print(
+                f"[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m"
+            )
+            print(
+                f"[FINETUNE] \033[94mAvailable VRAM: \033[92m{gpu_available_mem_gb:.2f} GB\033[0m"
+            )
+            print(
+                f"[FINETUNE] \033[94mIf you are running on a Linux system and you have 12GB's or less of VRAM, this step\033[0m"
+            )
+            print(
+                f"[FINETUNE] \033[94mmay fail, due to not enough GPU VRAM. Windows systems will use system RAM as extended\033[0m"
+            )
+            print(
+                f"[FINETUNE] \033[94mVRAM and so should work ok. However, Windows machines will need enough System RAM\033[0m"
+            )
+            print(
+                f"[FINETUNE] \033[94mavailable. Please read the PFC help section available on the first tab of the web\033[0m"
+            )
             print(f"[FINETUNE] \033[94minterface for more information.\033[0m")
-            print(f"[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m")
+            print(
+                f"[FINETUNE] \033[91m****** WARNING PRE-FLIGHT CHECKS FAILED ******* WARNING PRE-FLIGHT CHECKS FAILED *****\033[0m"
+            )
             print(f"[FINETUNE]")
 
     # Create the directory
@@ -597,7 +714,9 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
         MEL_NORM_FILE = str(this_dir / base_path / model_path / "mel_stats.pth")
     else:
         # FINETUNED XTTS model checkpoints for fine-tuning.
-        print("[FINETUNE] Starting finetuning on \033[92mExisting Finetuned Model\033[0m")
+        print(
+            "[FINETUNE] Starting finetuning on \033[92mExisting Finetuned Model\033[0m"
+        )
         TOKENIZER_FILE = str(this_dir / base_path / "trainedmodel" / "vocab.json")
         XTTS_CHECKPOINT = str(this_dir / base_path / "trainedmodel" / "model.pth")
         XTTS_CONFIG_FILE = str(this_dir / base_path / "trainedmodel" / "config.json")
@@ -622,7 +741,9 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
         gpt_use_perceiver_resampler=True,
     )
     # define audio config
-    audio_config = XttsAudioConfig(sample_rate=22050, dvae_sample_rate=22050, output_sample_rate=24000)
+    audio_config = XttsAudioConfig(
+        sample_rate=22050, dvae_sample_rate=22050, output_sample_rate=24000
+    )
 
     # Resolve Japanese threading issue
     number_of_workers = 8
@@ -660,7 +781,11 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
         lr=learning_rate,  # learning rate
         lr_scheduler="MultiStepLR",
         # it was adjusted accordly for the new step scheme
-        lr_scheduler_params={"milestones": [50000 * 18, 150000 * 18, 300000 * 18], "gamma": 0.5, "last_epoch": -1},
+        lr_scheduler_params={
+            "milestones": [50, 100, 200, 300, 400, 500],
+            "gamma": 0.5,
+            "last_epoch": -1,
+        },
         test_sentences=[],
     )
 
@@ -692,7 +817,7 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
 
     # get the longest text audio file to use as speaker reference
     samples_len = [len(item["text"].split(" ")) for item in train_samples]
-    longest_text_idx =  samples_len.index(max(samples_len))
+    longest_text_idx = samples_len.index(max(samples_len))
     speaker_ref = train_samples[longest_text_idx]["audio_file"]
 
     trainer_out_path = trainer.output_path
@@ -706,24 +831,36 @@ def train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv,
     trainer = None
     model = None
     model_args = None
-    return XTTS_CONFIG_FILE, XTTS_CHECKPOINT, TOKENIZER_FILE, trainer_out_path, speaker_ref
+    return (
+        XTTS_CONFIG_FILE,
+        XTTS_CHECKPOINT,
+        TOKENIZER_FILE,
+        trainer_out_path,
+        speaker_ref,
+    )
+
 
 ##########################
 #### STEP 3 AND OTHER ####
 ##########################
 
+
 def clear_gpu_cache():
     # clear the GPU cache
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        
+
+
 def find_a_speaker_file(folder_path):
     search_path = folder_path / "*" / "speakers_xtts.pth"
     files = glob.glob(str(search_path), recursive=True)
     latest_file = max(files, key=os.path.getctime, default=None)
     return latest_file
 
+
 XTTS_MODEL = None
+
+
 def load_model(xtts_checkpoint, xtts_config, xtts_vocab):
     pfc_check_fail()
     global XTTS_MODEL
@@ -738,24 +875,36 @@ def load_model(xtts_checkpoint, xtts_config, xtts_vocab):
     print(xtts_checkpoint)
     print(xtts_vocab)
     print(xtts_speakers_pth)
-    XTTS_MODEL.load_checkpoint(config, checkpoint_path=xtts_checkpoint, vocab_path=xtts_vocab, use_deepspeed=False, speaker_file_path=xtts_speakers_pth)
+    XTTS_MODEL.load_checkpoint(
+        config,
+        checkpoint_path=xtts_checkpoint,
+        vocab_path=xtts_vocab,
+        use_deepspeed=False,
+        speaker_file_path=xtts_speakers_pth,
+    )
     if torch.cuda.is_available():
         XTTS_MODEL.cuda()
 
     print("[FINETUNE] Model Loaded!")
     return "Model Loaded!"
 
+
 def run_tts(lang, tts_text, speaker_audio_file):
     if XTTS_MODEL is None or not speaker_audio_file:
         return "You need to run the previous step to load the model !!", None, None
     speaker_audio_file = str(speaker_audio_file)
-    gpt_cond_latent, speaker_embedding = XTTS_MODEL.get_conditioning_latents(audio_path=speaker_audio_file, gpt_cond_len=XTTS_MODEL.config.gpt_cond_len, max_ref_length=XTTS_MODEL.config.max_ref_len, sound_norm_refs=XTTS_MODEL.config.sound_norm_refs)
+    gpt_cond_latent, speaker_embedding = XTTS_MODEL.get_conditioning_latents(
+        audio_path=speaker_audio_file,
+        gpt_cond_len=XTTS_MODEL.config.gpt_cond_len,
+        max_ref_length=XTTS_MODEL.config.max_ref_len,
+        sound_norm_refs=XTTS_MODEL.config.sound_norm_refs,
+    )
     out = XTTS_MODEL.inference(
         text=tts_text,
         language=lang,
         gpt_cond_latent=gpt_cond_latent,
         speaker_embedding=speaker_embedding,
-        temperature=XTTS_MODEL.config.temperature, # Add custom parameters here
+        temperature=XTTS_MODEL.config.temperature,  # Add custom parameters here
         length_penalty=XTTS_MODEL.config.length_penalty,
         repetition_penalty=XTTS_MODEL.config.repetition_penalty,
         top_k=XTTS_MODEL.config.top_k,
@@ -769,24 +918,30 @@ def run_tts(lang, tts_text, speaker_audio_file):
 
     return "Speech generated !", out_path, speaker_audio_file
 
+
 def get_available_voices(minimum_size_kb=1200):
     voice_files = [
-        voice for voice in Path(f"{this_dir}/finetune/tmp-trn/wavs").glob("*.wav")
+        voice
+        for voice in Path(f"{this_dir}/finetune/tmp-trn/wavs").glob("*.wav")
         if voice.stat().st_size > minimum_size_kb * 1200  # Convert KB to bytes
     ]
     return sorted([str(file) for file in voice_files])  # Return full path as string
+
 
 def find_best_models(directory):
     """Find files named 'best_model.pth' in the given directory."""
     return [str(file) for file in Path(directory).rglob("best_model.pth")]
 
+
 def find_models(directory, extension):
     """Find files with a specific extension in the given directory."""
     return [str(file) for file in Path(directory).rglob(f"*.{extension}")]
 
+
 def find_jsons(directory, filename):
     """Find files with a specific filename in the given directory."""
     return [str(file) for file in Path(directory).rglob(filename)]
+
 
 # Your main directory
 main_directory = Path(this_dir) / "finetune" / "tmp-trn"
@@ -801,25 +956,27 @@ xtts_vocab_files = find_jsons(main_directory, "vocab.json")
 #### STEP 4 AND OTHER ####
 ##########################
 
+
 def find_latest_best_model(folder_path):
     search_path = folder_path / "XTTS_FT-*" / "best_model.pth"
     files = glob.glob(str(search_path), recursive=True)
     latest_file = max(files, key=os.path.getctime, default=None)
     return latest_file
 
+
 def compact_model(xtts_checkpoint_copy):
     this_dir = Path(__file__).parent.resolve()
     print("THIS DIR:", this_dir)
     best_model_path_str = str(xtts_checkpoint_copy)  # Convert to string
     print("best_model_path_str", best_model_path_str)
-    
+
     # Check if the best model file exists
     if not best_model_path_str:
         print("[FINETUNE] No trained model was found.")
         return "No trained model was found."
-    
+
     print(f"[FINETUNE] Best model path: {best_model_path_str}")
-    
+
     # Attempt to load the model
     try:
         checkpoint = torch.load(best_model_path_str, map_location=torch.device("cpu"))
@@ -827,10 +984,10 @@ def compact_model(xtts_checkpoint_copy):
     except Exception as e:
         print("[FINETUNE] Error loading checkpoint:", e)
         raise
-    
+
     # Define the target directory
     target_dir = this_dir / "models" / "trainedmodel"
-    
+
     # Create the target directory if it doesn't exist
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -839,29 +996,37 @@ def compact_model(xtts_checkpoint_copy):
     for key in list(checkpoint["model"].keys()):
         if "dvae" in key:
             del checkpoint["model"][key]
-    
+
     # Save the modified checkpoint in the target directory
     torch.save(checkpoint, str(target_dir / "model.pth"))  # Convert to string
 
     # Specify the files you want to copy
-    files_to_copy = ["vocab.json", "config.json", "speakers_xtts.pth", "mel_stats.pth", "dvae.pth"]
-    
+    files_to_copy = [
+        "vocab.json",
+        "config.json",
+        "speakers_xtts.pth",
+        "mel_stats.pth",
+        "dvae.pth",
+    ]
+
     for file_name in files_to_copy:
         src_path = this_dir / base_path / base_model_path / file_name
         dest_path = target_dir / file_name
         shutil.copy(str(src_path), str(dest_path))  # Convert to string
-    
+
     source_wavs_dir = this_dir / "finetune" / "tmp-trn" / "wavs"
     target_wavs_dir = target_dir / "wavs"
     target_wavs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Iterate through files in the source directory
     for file_path in source_wavs_dir.iterdir():
         # Check if it's a file and larger than 1000 KB
         if file_path.is_file() and file_path.stat().st_size > 1000 * 1024:
             # Copy the file to the target directory
-            shutil.copy(str(file_path), str(target_wavs_dir / file_path.name))  # Convert to string
-    
+            shutil.copy(
+                str(file_path), str(target_wavs_dir / file_path.name)
+            )  # Convert to string
+
     print("[FINETUNE] Model copied to '/models/trainedmodel/'")
     return "Model copied to '/models/trainedmodel/'"
 
@@ -903,7 +1068,13 @@ def compact_lastfinetuned_model(xtts_checkpoint_copy):
     torch.save(checkpoint, target_dir / "model.pth")
 
     # Specify the files you want to copy
-    files_to_copy = ["vocab.json", "config.json", "speakers_xtts.pth", "mel_stats.pth", "dvae.pth",]
+    files_to_copy = [
+        "vocab.json",
+        "config.json",
+        "speakers_xtts.pth",
+        "mel_stats.pth",
+        "dvae.pth",
+    ]
 
     for file_name in files_to_copy:
         src_path = this_dir / base_path / base_model_path / file_name
@@ -920,7 +1091,7 @@ def compact_lastfinetuned_model(xtts_checkpoint_copy):
         if file_path.is_file() and file_path.stat().st_size > 1000 * 1024:
             # Copy the file to the target directory
             shutil.copy(str(file_path), str(target_wavs_dir / file_path.name))
-    
+
     print("[FINETUNE] Model copied to '/models/lastfinetuned/'")
     return "Model copied to '/models/lastfinetuned/'"
 
@@ -962,7 +1133,13 @@ def compact_custom_model(xtts_checkpoint_copy, folder_path):
     torch.save(checkpoint, target_dir / "model.pth")
 
     # Specify the files you want to copy
-    files_to_copy = ["vocab.json", "config.json", "speakers_xtts.pth", "mel_stats.pth", "dvae.pth",]
+    files_to_copy = [
+        "vocab.json",
+        "config.json",
+        "speakers_xtts.pth",
+        "mel_stats.pth",
+        "dvae.pth",
+    ]
 
     for file_name in files_to_copy:
         src_path = this_dir / base_path / base_model_path / file_name
@@ -979,8 +1156,8 @@ def compact_custom_model(xtts_checkpoint_copy, folder_path):
         if file_path.is_file() and file_path.stat().st_size > 1000 * 1024:
             # Copy the file to the target directory
             shutil.copy(str(file_path), str(target_wavs_dir / file_path.name))
-    
-    print("[FINETUNE] Model copied to '/models/",folder_path,"/")
+
+    print("[FINETUNE] Model copied to '/models/", folder_path, "/")
     return f"Model copied to '/models/{folder_path}/'"
 
 
@@ -1000,13 +1177,18 @@ def delete_training_data():
                     elif item.is_dir():
                         shutil.rmtree(item)
                 except PermissionError:
-                    print(f"[FINETUNE] PermissionError: Could not delete {item}. Skipping.")
+                    print(
+                        f"[FINETUNE] PermissionError: Could not delete {item}. Skipping."
+                    )
 
-        print(f"[FINETUNE] Folder {folder_to_delete} contents (excluding trainer_0_log.txt) deleted successfully.")
+        print(
+            f"[FINETUNE] Folder {folder_to_delete} contents (excluding trainer_0_log.txt) deleted successfully."
+        )
         return "Folder '/finetune/tmp-trn/' contents (excluding trainer_0_log.txt) deleted successfully."
     else:
         print(f"[FINETUNE] Folder {folder_to_delete} does not exist.")
         return "Folder '/finetune/tmp-trn/' does not exist."
+
 
 def delete_voice_sample_contents():
     # Define the folder to be cleared
@@ -1030,10 +1212,11 @@ def delete_voice_sample_contents():
         print(f"[FINETUNE] Folder {folder_to_clear} does not exist.")
         return f"Folder 'put-voice-samples-in-here' does not exist."
 
+
 #######################
 #### OTHER Generic ####
 #######################
-# define a logger to redirect 
+# define a logger to redirect
 class Logger:
     def __init__(self, filename="finetune.log"):
         self.log_file = filename
@@ -1051,52 +1234,54 @@ class Logger:
     def isatty(self):
         return False
 
+
 # redirect stdout and stderr to a file
 sys.stdout = Logger()
 sys.stderr = sys.stdout
 
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 import logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="[FINETUNE] %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
+
 
 def read_logs():
     sys.stdout.flush()
     with open(sys.stdout.log_file, "r") as f:
         return f.read()
 
+
 def cleanup_before_exit(signum, frame):
     print("[FINETUNE] Received interrupt signal. Cleaning up and exiting...")
     # Perform cleanup operations here if necessary
     sys.exit(0)
 
-def create_refresh_button(refresh_components, refresh_methods, elem_class, interactive=True):
+
+def create_refresh_button(
+    refresh_components, refresh_methods, elem_class, interactive=True
+):
     def refresh():
         updates = {}
         for component, method in zip(refresh_components, refresh_methods):
             args = method() if callable(method) else method
-            if args and 'choices' in args:
+            if args and "choices" in args:
                 # Select the most recent file (last in the sorted list)
-                args['value'] = args['choices'][-1] if args['choices'] else ""
+                args["value"] = args["choices"][-1] if args["choices"] else ""
             for k, v in args.items():
                 setattr(component, k, v)
             updates[component] = gr.update(**(args or {}))
         return updates
 
-    refresh_button = gr.Button("Refresh Dropdowns", elem_classes=elem_class, interactive=interactive)
-    refresh_button.click(
-        fn=refresh,
-        inputs=[],
-        outputs=refresh_components
+    refresh_button = gr.Button(
+        "Refresh Dropdowns", elem_classes=elem_class, interactive=interactive
     )
+    refresh_button.click(fn=refresh, inputs=[], outputs=refresh_components)
 
     return refresh_button
-
 
 
 pfc_markdown = f"""
@@ -1126,9 +1311,9 @@ if __name__ == "__main__":
     # Register the signal handler
     signal.signal(signal.SIGINT, cleanup_before_exit)
 
-################
-#### GRADIO ####
-################
+    ################
+    #### GRADIO ####
+    ################
 
     parser = argparse.ArgumentParser(
         description="""XTTS fine-tuning demo\n\n"""
@@ -1165,15 +1350,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-#####################
-#### GRADIO INFO ####
-#####################
+    #####################
+    #### GRADIO INFO ####
+    #####################
 
     with gr.Blocks(theme=theme, css=custom_css) as demo:
         with gr.Tab("🚀 PFC"):
             with gr.Tab("🚀 Pre-Flight Checklist"):
                 gr.Markdown(
-                f"""
+                    f"""
                 {pfc_markdown}       
                 {disk_space_results}
                 {system_ram_results}
@@ -1182,18 +1367,18 @@ if __name__ == "__main__":
                 {base_model_results}
                 {tts_version_status}
                 """
-            )
+                )
             with gr.Tab("🟩 Disks Help"):
                 gr.Markdown(
-                f"""
+                    f"""
                 {disk_space_results}<br><br>
                 ◽ During actual training (Step 2) Finetuning will require approximately 18GB's of free disk space while performing training and will fail or perform badly if there is any less disk space. The majority of this disk space is used temporarily and will be cleared when you reach Step 4 and move & compact the model then delete the training data.<br>
                 ◽ Because lots of data is being copied around, <strong>mechanical hard disks</strong> will be slow.
                 """
-            )
+                )
             with gr.Tab("🟪 RAM & VRAM Help"):
                 gr.Markdown(
-                f"""
+                    f"""
                 {system_ram_results}<br>
                 ◽ During actual training (Step 2) Finetuning will use around **14GB's** of VRAM. If your GPU doesnt have 14GB's of VRAM:<br>
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - **Windows** systems will attempt to extend VRAM into your System RAM, and so should work.<br>
@@ -1206,10 +1391,10 @@ if __name__ == "__main__":
                 ◽ If you have a low VRAM scenario and also are attempting to run on a mechanical hard drive, Finetuning could take ??? amount of time.<br>
                 ◽ On Windows machines, please ensure you have **not** disabled System Memory Fallback for Stable Diffusion <a href="https://nvidia.custhelp.com/app/answers/detail/a_id/5490/~/system-memory-fallback-for-stable-diffusion" target="_blank">link here</a><br>
                 """
-            )
+                )
             with gr.Tab("🟨 CUDA & Cublas Help"):
                 gr.Markdown(
-                f"""         
+                    f"""         
                 {cuda_results}<br><br>
                 ◽ It DOESNT matter what version of CUDA you have installed within Python either, CUDA 11.8, CUDA 12.1 etc. The NVIDIA CUDA Development Toolkit is a completly different and seperate thing from Python/PyTorch.<br>
                 ◽ Finetuning simply wants to access a tool within the CUDA Development Toolkit 11.8 called Cublas64_11.<br>
@@ -1227,10 +1412,10 @@ if __name__ == "__main__":
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;◽ 5) Once you have these set correctly, you should be able to open a new command prompt/terminal and <span style="color: #3366ff;">nvcc --version</span> at the command prompt/terminal, resulting in <span style="color: #00a000;">Cuda compilation tools, release 11.8</span>.<br>
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;◽ 6) If the nvcc command doesn't work OR it reports a version different from 11.8, finetuning wont work, so you will to double check your environment variables and get them working correctly.<br>
                 """
-            )
+                )
             with gr.Tab("🟦 Python & PyTorch Help"):
                 gr.Markdown(
-                f"""         
+                    f"""         
                 {pytorch_results}<br><br>
                 ◽ On the PyTorch version the:<br>
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- first few digits are the version of PyTorch e.g. 2.1.0 is PyTorch 2.1.0<br>
@@ -1241,29 +1426,29 @@ if __name__ == "__main__":
                 ◽ Finetuning simply wants to access a tool within the CUDA Development Toolkit called Cublas64_11.<br>
                 ◽ If you dont have the toolkit installed, the idea is just to install the smallest bit possible and this will not affect or impact other things on your system.<br>
                 """
-            )
+                )
             with gr.Tab("⬛ XTTS Base Model Help"):
                 gr.Markdown(
-                f"""         
+                    f"""         
                 {base_model_results}<br><br>
                 ◽ If your basemodel is not being detected, please ensure that <span style="color: #3366ff;">finetune.py</span> is being run from the AllTalk main folder.<br>
                 ◽ Ensure you have started AllTalk normally at least once. You can start it again and it will download any missing files.<br>
                 ◽ Check that there is an XTTS model within the models folder e.g. <span style="color: #3366ff;">/models/xttsv2_2.0.2/</span><br>
                 ◽ The files required are "model.pth", "vocab.json", "config.json", "dvae.pth", "mel_stats.pth", "speakers_xtts.pth".
                 """
-            )
+                )
             with gr.Tab("🟥 TTS Version Help"):
                 gr.Markdown(
-                f"""         
+                    f"""         
                 {tts_version_status}<br><br>
                 ◽ If your TTS version is showing as the incorrect version, please reinstall the Finetuning requirements at the command prompt/terminal.<br>
                 ◽ <span style="color: #3366ff;">pip install -r requirements_finetune.txt</span><br>
                 """
-            )
-                
+                )
+
         with gr.Tab("ℹ️ General Finetuning info"):
             gr.Markdown(
-            f"""
+                f"""
             ### 🟥 <u>Important Note</u>
             ◽ <span style="color: #3366ff;">finetune.py</span> needs to be run from the <span style="color: #3366ff;">/alltalk_tts/</span> folder. Don't move the location of this script.
             ### 🟦 <u>What you need to run finetuning</u>
@@ -1281,11 +1466,11 @@ if __name__ == "__main__":
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ◽ [AllTalk Github Finetuning](https://github.com/erew123/alltalk_tts#-finetuning-a-model)<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ◽ [Coqui XTTS Documentation](https://docs.coqui.ai/en/latest/index.html)<br>
             """
-        )
+            )
 
-#######################
-#### GRADIO STEP 1 ####
-#######################
+        #######################
+        #### GRADIO STEP 1 ####
+        #######################
         with gr.Tab("📁 Step 1 - Generating the dataset"):
 
             gr.Markdown(
@@ -1319,7 +1504,7 @@ if __name__ == "__main__":
                 ◽ First time, it needs to download the Whisper model which is 3GB. After that a few minutes on an average 3-4 year old system.<br>
                 """
             )
-                 
+
             out_path = gr.Textbox(
                 label="Output path (where data and checkpoints will be saved):",
                 value=out_path,
@@ -1329,13 +1514,7 @@ if __name__ == "__main__":
                 whisper_model = gr.Dropdown(
                     label="Whisper Model",
                     value="large-v2",
-                    choices=[
-                        "large-v3",
-                        "large-v2",
-                        "large",
-                        "medium",
-                        "small"
-                    ],
+                    choices=["large-v3", "large-v2", "large", "medium", "small"],
                 )
 
                 lang = gr.Dropdown(
@@ -1357,7 +1536,7 @@ if __name__ == "__main__":
                         "zh",
                         "hu",
                         "ko",
-                        "ja"
+                        "ja",
                     ],
                 )
 
@@ -1369,13 +1548,11 @@ if __name__ == "__main__":
                     step=1,  # Increment step
                 )
                 speaker_name_input = gr.Textbox(
-                label="The name of the speaker/person you are training",
-                value="personsname",
-                visible=True,
-            )
-            progress_data = gr.Label(
-                label="Progress:"
-            )
+                    label="The name of the speaker/person you are training",
+                    value="personsname",
+                    visible=True,
+                )
+            progress_data = gr.Label(label="Progress:")
             logs = gr.Textbox(
                 label="Logs:",
                 interactive=False,
@@ -1383,20 +1560,48 @@ if __name__ == "__main__":
             demo.load(read_logs, None, logs, every=1)
 
             prompt_compute_btn = gr.Button(value="Step 1 - Create dataset")
-        
-            def preprocess_dataset(language, whisper_model, out_path, eval_split_number, speaker_name_input, progress=gr.Progress(track_tqdm=True)):
+
+            def preprocess_dataset(
+                language,
+                whisper_model,
+                out_path,
+                eval_split_number,
+                speaker_name_input,
+                progress=gr.Progress(track_tqdm=True),
+            ):
                 clear_gpu_cache()
-                test_for_audio_files = [file for file in os.listdir(audio_folder) if any(file.lower().endswith(ext) for ext in ['.wav', '.mp3', '.flac'])]
+                test_for_audio_files = [
+                    file
+                    for file in os.listdir(audio_folder)
+                    if any(
+                        file.lower().endswith(ext) for ext in [".wav", ".mp3", ".flac"]
+                    )
+                ]
                 if not test_for_audio_files:
-                    return "I cannot find any mp3, wav or flac files in the folder called 'put-voice-samples-in-here'", "", ""
+                    return (
+                        "I cannot find any mp3, wav or flac files in the folder called 'put-voice-samples-in-here'",
+                        "",
+                        "",
+                    )
                 else:
                     try:
 
-                        train_meta, eval_meta, audio_total_size = format_audio_list(target_language=language, whisper_model=whisper_model, out_path=out_path, eval_split_number=eval_split_number, speaker_name_input=speaker_name_input, gradio_progress=progress)
+                        train_meta, eval_meta, audio_total_size = format_audio_list(
+                            target_language=language,
+                            whisper_model=whisper_model,
+                            out_path=out_path,
+                            eval_split_number=eval_split_number,
+                            speaker_name_input=speaker_name_input,
+                            gradio_progress=progress,
+                        )
                     except:
                         traceback.print_exc()
                         error = traceback.format_exc()
-                        return f"The data processing was interrupted due an error !! Please check the console to verify the full error message! \n Error summary: {error}", "", ""
+                        return (
+                            f"The data processing was interrupted due an error !! Please check the console to verify the full error message! \n Error summary: {error}",
+                            "",
+                            "",
+                        )
 
                 clear_gpu_cache()
 
@@ -1408,10 +1613,10 @@ if __name__ == "__main__":
 
                 print("[FINETUNE] Dataset Generated. Move to Step 2")
                 return "Dataset Generated. Move to Step 2", train_meta, eval_meta
-            
-#######################
-#### GRADIO STEP 2 ####
-#######################
+
+        #######################
+        #### GRADIO STEP 2 ####
+        #######################
         with gr.Tab("💻 Step 2 - Training"):
             with gr.Tab("Training"):
                 gr.Markdown(
@@ -1459,7 +1664,7 @@ if __name__ == "__main__":
                         scale=0,
                     )
                 with gr.Row():
-                    num_epochs =  gr.Slider(
+                    num_epochs = gr.Slider(
                         label="Number of epochs:",
                         minimum=1,
                         maximum=100,
@@ -1494,17 +1699,15 @@ if __name__ == "__main__":
                     model_to_train = gr.Radio(
                         choices=model_to_train_choices,
                         label="Which model do you want to train?",
-                        value="Base Model"
+                        value="Base Model",
                     )
                     gr.Markdown(
-                    f"""
+                        f"""
                     If you have an existing finetuned model in <span style="color: #3366ff;">/models/trainedmodel/</span> you will have an option to select <span style="color: #3366ff;">Existing finetuned model</span>, allowing you to further train it. Otherwise, you will only have Base Model as an option.
                     """
                     )
 
-                progress_train = gr.Label(
-                    label="Progress:"
-                )
+                progress_train = gr.Label(label="Progress:")
                 logs_tts_train = gr.Textbox(
                     label="Logs:",
                     interactive=False,
@@ -1512,19 +1715,59 @@ if __name__ == "__main__":
                 demo.load(read_logs, None, logs_tts_train, every=1)
                 train_btn = gr.Button(value="Step 2 - Run the training")
 
-                def train_model(language, train_csv, eval_csv, learning_rates, num_epochs, batch_size, grad_acumm, output_path, max_audio_length):
+                def train_model(
+                    language,
+                    train_csv,
+                    eval_csv,
+                    learning_rates,
+                    num_epochs,
+                    batch_size,
+                    grad_acumm,
+                    output_path,
+                    max_audio_length,
+                ):
                     clear_gpu_cache()
                     if not train_csv or not eval_csv:
-                        return "You need to run the data processing step or manually set `Train CSV` and `Eval CSV` fields !", "", "", "", ""
+                        return (
+                            "You need to run the data processing step or manually set `Train CSV` and `Eval CSV` fields !",
+                            "",
+                            "",
+                            "",
+                            "",
+                        )
                     try:
                         # convert seconds to waveform frames
                         max_audio_length = int(max_audio_length * 22050)
-                        learning_rate = float(learning_rates)  # Convert the learning rate value to a float
-                        config_path, original_xtts_checkpoint, vocab_file, exp_path, speaker_wav = train_gpt(language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv, learning_rate, output_path=str(output_path), max_audio_length=max_audio_length)
+                        learning_rate = float(
+                            learning_rates
+                        )  # Convert the learning rate value to a float
+                        (
+                            config_path,
+                            original_xtts_checkpoint,
+                            vocab_file,
+                            exp_path,
+                            speaker_wav,
+                        ) = train_gpt(
+                            language,
+                            num_epochs,
+                            batch_size,
+                            grad_acumm,
+                            train_csv,
+                            eval_csv,
+                            learning_rate,
+                            output_path=str(output_path),
+                            max_audio_length=max_audio_length,
+                        )
                     except:
                         traceback.print_exc()
                         error = traceback.format_exc()
-                        return f"The training was interrupted due an error !! Please check the console to check the full error message! \n Error summary: {error}", "", "", "", ""
+                        return (
+                            f"The training was interrupted due an error !! Please check the console to check the full error message! \n Error summary: {error}",
+                            "",
+                            "",
+                            "",
+                            "",
+                        )
 
                     # copy original files to avoid parameters changes issues
                     shutil.copy(config_path, exp_path)
@@ -1533,9 +1776,16 @@ if __name__ == "__main__":
                     ft_xtts_checkpoint = os.path.join(exp_path, "best_model.pth")
                     print("[FINETUNE] Model training done. Move to Step 3")
                     clear_gpu_cache()
-                    return "Model training done. Move to Step 3", config_path, vocab_file, ft_xtts_checkpoint, speaker_wav
+                    return (
+                        "Model training done. Move to Step 3",
+                        config_path,
+                        vocab_file,
+                        ft_xtts_checkpoint,
+                        speaker_wav,
+                    )
+
             with gr.Tab("Info - Grad Accumulation"):
-                                gr.Markdown(
+                gr.Markdown(
                     f"""
                     ### 🟩 <u>Grad Accumulation</u><br>
                     ◽ Gradient accumulation is a technique that allows you to simulate a larger batch size without actually increasing the memory consumption. Here's how it works:<br>
@@ -1552,7 +1802,7 @@ if __name__ == "__main__":
                     """
                 )
             with gr.Tab("Info - Batch Size"):
-                                gr.Markdown(
+                gr.Markdown(
                     f"""
                     ### 🟩 <u>Batch Size</u><br>
                     ◽ Batch size refers to the number of training examples processed in a single iteration (forward and backward pass) before updating the model's parameters.<br>
@@ -1567,7 +1817,7 @@ if __name__ == "__main__":
                     """
                 )
             with gr.Tab("Info - Learning Rate"):
-                                gr.Markdown(
+                gr.Markdown(
                     f"""
                     ### 🟩 <u>Learning Rate</u><br>
                     ◽ 1e-6: Very small learning rate, slow but stable learning.<br>
@@ -1581,7 +1831,7 @@ if __name__ == "__main__":
                     """
                 )
             with gr.Tab("Info - Epochs"):
-                                gr.Markdown(
+                gr.Markdown(
                     f"""
                     ### 🟩 <u>Epochs</u><br>
                     ◽ An epoch represents a single pass through the entire training dataset during the training process.<br>
@@ -1597,7 +1847,7 @@ if __name__ == "__main__":
                     """
                 )
             with gr.Tab("Info - Max Audio"):
-                                gr.Markdown(
+                gr.Markdown(
                     f"""
                     ### 🟩 <u>Max Permitted Audio Size (in seconds)</u><br>
                     ◽ The max permitted audio size determines the maximum duration of audio files that can be used as input to the model during training and inference.<br>
@@ -1612,11 +1862,10 @@ if __name__ == "__main__":
                     """
                 )
 
-                
-#######################
-#### GRADIO STEP 3 ####
-#######################
-            
+        #######################
+        #### GRADIO STEP 3 ####
+        #######################
+
         with gr.Tab("✅ Step 3 - Testing"):
             gr.Markdown(
                 f"""
@@ -1661,9 +1910,7 @@ if __name__ == "__main__":
                         value="",
                         allow_custom_value=True,
                     )
-                    progress_load = gr.Label(
-                        label="Progress:"
-                    )
+                    progress_load = gr.Label(label="Progress:")
                     load_btn = gr.Button(value="Step 3 - Load Fine-tuned XTTS model")
 
                 with gr.Column() as col2:
@@ -1701,18 +1948,37 @@ if __name__ == "__main__":
                                 "hu",
                                 "ko",
                                 "ja",
-                            ]
+                            ],
                         )
                         # Create refresh button
                         refresh_button = create_refresh_button(
-                            [xtts_checkpoint, xtts_config, xtts_vocab, speaker_reference_audio],
                             [
-                                lambda: {"choices": find_best_models(main_directory), "value": ""},
-                                lambda: {"choices": find_jsons(main_directory, "config.json"), "value": ""},
-                                lambda: {"choices": find_jsons(main_directory, "vocab.json"), "value": ""},
-                                lambda: {"choices": get_available_voices(), "value": ""},
+                                xtts_checkpoint,
+                                xtts_config,
+                                xtts_vocab,
+                                speaker_reference_audio,
                             ],
-                            elem_class="refresh-button-class"
+                            [
+                                lambda: {
+                                    "choices": find_best_models(main_directory),
+                                    "value": "",
+                                },
+                                lambda: {
+                                    "choices": find_jsons(
+                                        main_directory, "config.json"
+                                    ),
+                                    "value": "",
+                                },
+                                lambda: {
+                                    "choices": find_jsons(main_directory, "vocab.json"),
+                                    "value": "",
+                                },
+                                lambda: {
+                                    "choices": get_available_voices(),
+                                    "value": "",
+                                },
+                            ],
+                            elem_class="refresh-button-class",
                         )
                     tts_text = gr.Textbox(
                         label="Input Text:",
@@ -1722,9 +1988,7 @@ if __name__ == "__main__":
                     tts_btn = gr.Button(value="Step 4 - Inference (Generate TTS)")
 
                 with gr.Column() as col3:
-                    progress_gen = gr.Label(
-                        label="Progress:"
-                    )
+                    progress_gen = gr.Label(label="Progress:")
                     tts_output_audio = gr.Audio(label="TTS Generated Audio.")
                     reference_audio = gr.Audio(label="Speaker Reference Audio Used.")
 
@@ -1750,9 +2014,7 @@ if __name__ == "__main__":
                 ◽ You can also uninstall the Nvidia CUDA 11.8 Toolkit if you wish and remove your environment variable entries.<br>
                 """
             )
-            final_progress_data = gr.Label(
-                label="Progress:"
-            )
+            final_progress_data = gr.Label(label="Progress:")
             with gr.Row():
                 xtts_checkpoint_copy = gr.Dropdown(
                     [str(file) for file in xtts_checkpoint_files],
@@ -1763,39 +2025,57 @@ if __name__ == "__main__":
                 )
                 # Create refresh button
                 refresh_button = create_refresh_button(
-                    [xtts_checkpoint_copy,],
                     [
-                        lambda: {"choices": find_best_models(main_directory), "value": ""},
+                        xtts_checkpoint_copy,
                     ],
-                    elem_class="refresh-button-class")
+                    [
+                        lambda: {
+                            "choices": find_best_models(main_directory),
+                            "value": "",
+                        },
+                    ],
+                    elem_class="refresh-button-class",
+                )
             with gr.Row():
-                compact_btn = gr.Button(value="OPTION A - Compact and move model to '/trainedmodel/'")
+                compact_btn = gr.Button(
+                    value="OPTION A - Compact and move model to '/trainedmodel/'"
+                )
                 gr.Markdown(
-                f"""
+                    f"""
                 This will compact the model and move it, along with the reference wav's to <span style="color: #3366ff;">/models/trainedmodel/</span> and will <span style="color: red;">OVERWRITE</span> any model in that location. This model will become available to load in Text-gen-webui with the <span style="color: #3366ff;">XTTSv2 FT</span> loader. It will also be detected by Finetune as a model that can be further trained (Reload finetune.py).
                 """
                 )
             with gr.Row():
-                compact_lastfinetuned_btn = gr.Button(value="OPTION B - Compact and move model to '/lastfinetuned/'")
+                compact_lastfinetuned_btn = gr.Button(
+                    value="OPTION B - Compact and move model to '/lastfinetuned/'"
+                )
                 gr.Markdown(
-                f"""
+                    f"""
                 This will compact the model and move it, along with the reference wav's to <span style="color: #3366ff;">/models/lastfinetuned/</span> and will <span style="color: red;">OVERWRITE</span> any model in that location. This will just leave you a finetuned model that you can do with as you please. It will <span style="color: red;">NOT</span> be available in Text-gen-webui unless you copy it over one of the other model loader locations.
                 """
                 )
             with gr.Row():
-                compact_custom_btn = gr.Button(value="OPTION C - Compact and move model to a folder name of your choosing")
-                folder_path = gr.Textbox(label="Enter a new folder name (will be sub the models folder)", lines=1, value="mycustomfolder")
+                compact_custom_btn = gr.Button(
+                    value="OPTION C - Compact and move model to a folder name of your choosing"
+                )
+                folder_path = gr.Textbox(
+                    label="Enter a new folder name (will be sub the models folder)",
+                    lines=1,
+                    value="mycustomfolder",
+                )
             with gr.Row():
                 delete_training_btn = gr.Button(value="Delete generated training data")
                 gr.Markdown(
-                f"""
+                    f"""
                 This will <span style="color: red;">DELETE</span> your training data and the raw finetuned model from <span style="color: #3366ff;">/finetune/tmp-trn/</span>.
                 """
                 )
             with gr.Row():
-                delete_voicesamples_btn = gr.Button(value="Delete original voice samples")
+                delete_voicesamples_btn = gr.Button(
+                    value="Delete original voice samples"
+                )
                 gr.Markdown(
-                f"""
+                    f"""
                 This will <span style="color: red;">DELETE</span> your original voice samples from <span style="color: #3366ff;">/finetune/put-voice-samples-in-here/</span>.
                 """
                 )
@@ -1816,7 +2096,6 @@ if __name__ == "__main__":
                 ],
             )
 
-
             train_btn.click(
                 fn=train_model,
                 inputs=[
@@ -1830,16 +2109,18 @@ if __name__ == "__main__":
                     out_path,
                     max_audio_length,
                 ],
-                outputs=[progress_train, xtts_config, xtts_vocab, xtts_checkpoint, speaker_reference_audio],
+                outputs=[
+                    progress_train,
+                    xtts_config,
+                    xtts_vocab,
+                    xtts_checkpoint,
+                    speaker_reference_audio,
+                ],
             )
-            
+
             load_btn.click(
                 fn=load_model,
-                inputs=[
-                    xtts_checkpoint,
-                    xtts_config,
-                    xtts_vocab
-                ],
+                inputs=[xtts_checkpoint, xtts_config, xtts_vocab],
                 outputs=[progress_load],
             )
 
@@ -1851,7 +2132,7 @@ if __name__ == "__main__":
                     speaker_reference_audio,
                 ],
                 outputs=[progress_gen, tts_output_audio, reference_audio],
-            )    
+            )
             compact_btn.click(
                 fn=compact_model,
                 inputs=[xtts_checkpoint_copy],
@@ -1875,7 +2156,9 @@ if __name__ == "__main__":
                 fn=delete_voice_sample_contents,
                 outputs=[final_progress_data],
             )
-            model_to_train.change(basemodel_or_finetunedmodel_choice, model_to_train, None)
+            model_to_train.change(
+                basemodel_or_finetunedmodel_choice, model_to_train, None
+            )
 
     demo.queue().launch(
         show_api=False,
@@ -1885,4 +2168,3 @@ if __name__ == "__main__":
         server_port=7052,
         server_name="127.0.0.1",
     )
-
