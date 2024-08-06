@@ -351,11 +351,7 @@ def format_audio_list(
     os.makedirs(out_path, exist_ok=True)
     temp_folder = os.path.join(out_path, "temp")  # Update with your folder name
     os.makedirs(temp_folder, exist_ok=True)
-    print(
-        "[FINETUNE] \033[94mPart of AllTalk\033[0m https://github.com/erew123/alltalk_tts/"
-    )
-    print("[FINETUNE] \033[94mCoqui Public Model License\033[0m")
-    print("[FINETUNE] \033[94mhttps://coqui.ai/cpml.txt\033[0m")
+
     print(
         f"[FINETUNE] \033[94mWhisper model: \033[92m{whisper_model} \033[94mLanguage: \033[92m{target_language} \033[94mEvaluation data percentage: \033[92m{eval_split_number}%\033[0m"
     )
@@ -1461,10 +1457,6 @@ if __name__ == "__main__":
             ◽ This process will need access to all your GPU and VRAM, so close any other software that's using your GPU currently.<br>
             ### 🟨 <u>What do I do from here?</u><br>
             ◽ Proceed through Step 1, 2, 3 and onto "What to do next".<br>
-            ### 🟩 <u>Additional Information</u><br>
-            ◽ Guidance is provided on each step of the process however, if you are after more detailed information please visit:<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ◽ [AllTalk Github Finetuning](https://github.com/erew123/alltalk_tts#-finetuning-a-model)<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ◽ [Coqui XTTS Documentation](https://docs.coqui.ai/en/latest/index.html)<br>
             """
             )
 

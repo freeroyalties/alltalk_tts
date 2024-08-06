@@ -822,8 +822,8 @@ def train_gpt(
         lr=learning_rate,  # learning rate
         lr_scheduler="MultiStepLR",
         # it was adjusted accordly for the new step scheme
-        lr_scheduler_params={
-            "milestones": [1000, 2000, 4000, 8000, 16000],
+        lr_scheduler_params={   
+            "milestones": [250, 500, 1000, 1500, 2000],
             "gamma": 0.5,
             "last_epoch": -1,
         },

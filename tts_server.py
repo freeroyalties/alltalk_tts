@@ -9,6 +9,7 @@ from TTS.tts.models.xtts import Xtts
 import io
 import wave
 import logging
+
 logging.disable(logging.WARNING)
 ##########################
 #### Webserver Imports####
@@ -22,7 +23,13 @@ from fastapi import (
     HTTPException,
     Query,
 )
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    HTMLResponse,
+    RedirectResponse,
+    FileResponse,
+    StreamingResponse,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +47,7 @@ with open(this_dir / "system" / "config" / "languages.json", encoding="utf8") as
     languages = json.load(f)
 # Base setting for a possible FineTuned model existing and the loader being available
 tts_method_xtts_ft = False
+
 
 #################################################################
 #### LOAD PARAMS FROM confignew.json - REQUIRED FOR BRANDING ####
@@ -97,7 +105,9 @@ finetuned_model = trained_model_directory.exists()
 # If the directory exists, check for the existence of the required files
 if finetuned_model:
     required_files = ["model.pth", "config.json", "vocab.json"]
-    finetuned_model = all((trained_model_directory / file).exists() for file in required_files)
+    finetuned_model = all(
+        (trained_model_directory / file).exists() for file in required_files
+    )
 
 ########################
 #### STARTUP CHECKS ####
@@ -110,7 +120,7 @@ except ModuleNotFoundError:
         f"[{params['branding']}Startup] \033[91mWarning\033[0m Could not find the TTS module. Make sure to install the requirements for the alltalk_tts extension.",
         f"[{params['branding']}Startup] \033[91mWarning\033[0m Linux / Mac:\npip install -r extensions/alltalk_tts/requirements.txt\n",
         f"[{params['branding']}Startup] \033[91mWarning\033[0m Windows:\npip install -r extensions\\alltalk_tts\\requirements.txt\n",
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m If you used the one-click installer, paste the command above in the terminal window launched after running the cmd_ script. On Windows, that's cmd_windows.bat."
+        f"[{params['branding']}Startup] \033[91mWarning\033[0m If you used the one-click installer, paste the command above in the terminal window launched after running the cmd_ script. On Windows, that's cmd_windows.bat.",
     )
     raise
 
@@ -118,9 +128,11 @@ except ModuleNotFoundError:
 deepspeed_available = False
 try:
     import deepspeed
+
     deepspeed_available = True
 except ImportError:
     pass
+
 
 @asynccontextmanager
 async def startup_shutdown(no_actual_value_it_demanded_something_be_here):
@@ -139,6 +151,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 #####################################
 #### MODEL LOADING AND UNLOADING ####
@@ -182,14 +195,16 @@ async def setup():
     # Calculate start time minus end time
     generate_elapsed_time = generate_end_time - generate_start_time
     # Print out the result of the load time
-    print(f"[{params['branding']}Model] \033[94mModel Loaded in \033[93m{generate_elapsed_time:.2f} seconds.\033[0m")
+    print(
+        f"[{params['branding']}Model] \033[94mModel Loaded in \033[93m{generate_elapsed_time:.2f} seconds.\033[0m"
+    )
     print(f"[{params['branding']}Model] Ready")
     # Set "tts_model_loaded" to true
     params["tts_model_loaded"] = True
     # Set the output path for wav files
     output_directory = this_dir / params["output_folder_wav_standalone"]
     output_directory.mkdir(parents=True, exist_ok=True)
-    #Path(f'this_folder/outputs/').mkdir(parents=True, exist_ok=True)
+    # Path(f'this_folder/outputs/').mkdir(parents=True, exist_ok=True)
 
 
 # MODEL LOADER For "API TTS"
@@ -215,10 +230,11 @@ async def api_manual_load_model():
         )
         model = TTS(
             model_path=modeldownload_base_path / modeldownload_model_path,
-            config_path=modeldownload_base_path / modeldownload_model_path / "config.json",
+            config_path=modeldownload_base_path
+            / modeldownload_model_path
+            / "config.json",
         ).to(device)
-        print(f"[{params['branding']}Model] \033[94mCoqui Public Model License\033[0m")
-        print(f"[{params['branding']}Model] \033[94mhttps://coqui.ai/cpml.txt\033[0m")
+
     return model
 
 
@@ -237,7 +253,9 @@ async def xtts_manual_load_model():
             modeldownload_base_path / modeldownload_model_path,
         )
         config_path = modeldownload_base_path / modeldownload_model_path / "config.json"
-        vocab_path_dir = modeldownload_base_path / modeldownload_model_path / "vocab.json"
+        vocab_path_dir = (
+            modeldownload_base_path / modeldownload_model_path / "vocab.json"
+        )
         checkpoint_dir = modeldownload_base_path / modeldownload_model_path
     config.load_json(str(config_path))
     model = Xtts.init_from_config(config)
@@ -245,12 +263,12 @@ async def xtts_manual_load_model():
         config,
         checkpoint_dir=str(checkpoint_dir),
         vocab_path=str(vocab_path_dir),
-        use_deepspeed=params["deepspeed_activate"],
+        use_deepspeed=False,
     )
     model.to(device)
-    print(f"[{params['branding']}Model] \033[94mCoqui Public Model License\033[0m")
-    print(f"[{params['branding']}Model] \033[94mhttps://coqui.ai/cpml.txt\033[0m")
+
     return model
+
 
 # MODEL LOADER For "XTTSv2 FT"
 async def xtts_ft_manual_load_model():
@@ -268,9 +286,9 @@ async def xtts_ft_manual_load_model():
         use_deepspeed=params["deepspeed_activate"],
     )
     model.to(device)
-    print(f"[{params['branding']}Model] \033[94mCoqui Public Model License\033[0m")
-    print(f"[{params['branding']}Model] \033[94mhttps://coqui.ai/cpml.txt\033[0m")
+
     return model
+
 
 # MODEL UNLOADER
 async def unload_model(model):
@@ -477,15 +495,20 @@ async def deepspeed(request: Request, new_deepspeed_value: bool):
 #### TTS GENERATION ####
 ########################
 debug_generate_audio = False
-tts_stop_generation = False # Called to stop generation of the current text at whatever stage its at. currently only set for streaming.
-tts_generation_lock = False # Tracks locking of the generaetion process.
-tts_narrator_generatingtts = False # Tracks if the current tts processes are narrator based, to avoid moving model on each chunk of text generated.
+tts_stop_generation = False  # Called to stop generation of the current text at whatever stage its at. currently only set for streaming.
+tts_generation_lock = False  # Tracks locking of the generaetion process.
+tts_narrator_generatingtts = False  # Tracks if the current tts processes are narrator based, to avoid moving model on each chunk of text generated.
 # Not in use tts_queue_behaviour = False # True is to queue the current generation request. False is to cancel the current generation and start a new one.
 
+
 # TTS VOICE GENERATION METHODS (called from voice_preview and output_modifer)
-async def generate_audio(text, voice, language, temperature, repetition_penalty, output_file, streaming=False):
+async def generate_audio(
+    text, voice, language, temperature, repetition_penalty, output_file, streaming=False
+):
     # Get the async generator from the internal function
-    response = generate_audio_internal(text, voice, language, temperature, repetition_penalty, output_file, streaming)
+    response = generate_audio_internal(
+        text, voice, language, temperature, repetition_penalty, output_file, streaming
+    )
     # If streaming, then return the generator as-is, otherwise just exhaust it and return
     if streaming:
         return response
@@ -493,13 +516,15 @@ async def generate_audio(text, voice, language, temperature, repetition_penalty,
         pass
 
 
-async def generate_audio_internal(text, voice, language, temperature, repetition_penalty, output_file, streaming):
+async def generate_audio_internal(
+    text, voice, language, temperature, repetition_penalty, output_file, streaming
+):
     global model, tts_stop_generation, tts_generation_lock
     tts_generation_lock = True
     if params["low_vram"] and device == "cpu":
         await switch_device()
     generate_start_time = time.time()  # Record the start time of generating TTS
-    
+
     # XTTSv2 LOCAL & Xttsv2 FT Method
     if params["tts_method_xtts_local"] or tts_method_xtts_ft:
         print(f"[{params['branding']}TTSGen] {text}")
@@ -521,7 +546,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             "repetition_penalty": float(repetition_penalty),
             "top_k": int(model.config.top_k),
             "top_p": float(model.config.top_p),
-            "enable_text_splitting": True
+            "enable_text_splitting": True,
         }
 
         # Determine the correct inference function and add streaming specific argument if needed
@@ -560,12 +585,19 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
                 yield chunk.tobytes()
-                print(f"[{params['branding']}Debug] Stream audio generation: Yielded audio chunk {i}.") if debug_generate_audio else None   
+                (
+                    print(
+                        f"[{params['branding']}Debug] Stream audio generation: Yielded audio chunk {i}."
+                    )
+                    if debug_generate_audio
+                    else None
+                )
         else:
             # Non-streaming-specific operation
-            torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
+            torchaudio.save(
+                output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000
+            )
 
-    
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
@@ -603,7 +635,9 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     # Print Generation time and settings
     generate_end_time = time.time()  # Record the end time to generate TTS
     generate_elapsed_time = generate_end_time - generate_start_time
-    print(f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m")
+    print(
+        f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m"
+    )
     # Move model back to cpu system ram if needed.
     if params["low_vram"] and device == "cuda" and tts_narrator_generatingtts == False:
         await switch_device()
@@ -625,7 +659,15 @@ async def generate(request: Request):
         output_file = data["output_file"]
         streaming = False
         # Generation logic
-        response = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file, streaming)
+        response = await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file,
+            streaming,
+        )
         if streaming:
             return StreamingResponse(response, media_type="audio/wav")
         return JSONResponse(
@@ -647,12 +689,14 @@ def list_files(directory):
     ]
     return files
 
+
 #############################
 #### JSON CONFIG UPDATER ####
 #############################
 
 # Create an instance of Jinja2Templates for rendering HTML templates
 templates = Jinja2Templates(directory=this_dir / "system")
+
 
 # Create a dependency to get the current JSON data
 def get_json_data():
@@ -676,8 +720,10 @@ async def get_settings(request: Request):
         },
     )
 
+
 # Define an endpoint to serve static files
 app.mount("/static", StaticFiles(directory=str(this_dir / "system")), name="static")
+
 
 @app.post("/update-settings")
 async def update_settings(
@@ -738,22 +784,50 @@ async def update_settings(
 #### SETTINGS PAGE DEMO VOICE ####
 ##################################
 
+
 @app.get("/tts-demo-request", response_class=StreamingResponse)
-async def tts_demo_request_streaming(text: str, voice: str, language: str, output_file: str):
+async def tts_demo_request_streaming(
+    text: str, voice: str, language: str, output_file: str
+):
     try:
         output_file_path = this_dir / "outputs" / output_file
-        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
+        stream = await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file_path,
+            streaming=True,
+        )
         return StreamingResponse(stream, media_type="audio/wav")
     except Exception as e:
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
+
 @app.post("/tts-demo-request", response_class=JSONResponse)
-async def tts_demo_request(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
+async def tts_demo_request(
+    request: Request,
+    text: str = Form(...),
+    voice: str = Form(...),
+    language: str = Form(...),
+    output_file: str = Form(...),
+):
     try:
         output_file_path = this_dir / "outputs" / output_file
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
+        await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file_path,
+            streaming=False,
+        )
+        return JSONResponse(
+            content={"output_file_path": str(output_file)}, status_code=200
+        )
     except Exception as e:
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
@@ -763,28 +837,29 @@ async def tts_demo_request(request: Request, text: str = Form(...), voice: str =
 #### Audio feeds ####
 #####################
 
+
 # Gives web access to the output files
 @app.get("/audio/{filename}")
 async def get_audio(filename: str):
     audio_path = this_dir / "outputs" / filename
     return FileResponse(audio_path)
 
+
 @app.get("/audiocache/{filename}")
 async def get_audio(filename: str):
     audio_path = Path("outputs") / filename
     if not audio_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    
-    response = FileResponse(
-        path=audio_path,
-        media_type='audio/wav',
-        filename=filename
-    )
+
+    response = FileResponse(path=audio_path, media_type="audio/wav", filename=filename)
     # Set caching headers
     response.headers["Cache-Control"] = "public, max-age=604800"  # Cache for one week
-    response.headers["ETag"] = str(audio_path.stat().st_mtime)  # Use the file's last modified time as a simple ETag
+    response.headers["ETag"] = str(
+        audio_path.stat().st_mtime
+    )  # Use the file's last modified time as a simple ETag
 
     return response
+
 
 #########################
 #### VOICES LIST API ####
@@ -794,6 +869,7 @@ async def get_audio(filename: str):
 async def get_voices():
     wav_files = list_files(this_dir / "voices")
     return {"voices": wav_files}
+
 
 ###########################
 #### PREVIEW VOICE API ####
@@ -806,15 +882,23 @@ async def preview_voice(request: Request, voice: str = Form(...)):
         output_file_name = "api_preview_voice"
 
         # Clean the voice filename for inclusion in the text
-        clean_voice_filename = re.sub(r'\.wav$', '', voice.replace(' ', '_'))
-        clean_voice_filename = re.sub(r'[^a-zA-Z0-9]', ' ', clean_voice_filename)
-        
+        clean_voice_filename = re.sub(r"\.wav$", "", voice.replace(" ", "_"))
+        clean_voice_filename = re.sub(r"[^a-zA-Z0-9]", " ", clean_voice_filename)
+
         # Generate the audio
         text = f"Hello, this is a preview of voice {clean_voice_filename}."
 
         # Generate the audio
         output_file_path = this_dir / "outputs" / f"{output_file_name}.wav"
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
+        await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file_path,
+            streaming=False,
+        )
 
         # Generate the URL
         output_file_url = f'http://{params["ip_address"]}:{params["port_number"]}/audio/{output_file_name}.wav'
@@ -832,6 +916,7 @@ async def preview_voice(request: Request, voice: str = Form(...)):
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
+
 ########################
 #### GENERATION API ####
 ########################
@@ -847,25 +932,54 @@ import hashlib
 #### Streaming Generation ####
 ##############################
 
+
 @app.get("/api/tts-generate-streaming", response_class=StreamingResponse)
-async def tts_generate_streaming(text: str, voice: str, language: str, output_file: str):
+async def tts_generate_streaming(
+    text: str, voice: str, language: str, output_file: str
+):
     try:
         output_file_path = this_dir / "outputs" / output_file
-        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
+        stream = await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file_path,
+            streaming=True,
+        )
         return StreamingResponse(stream, media_type="audio/wav")
     except Exception as e:
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
+
 @app.post("/api/tts-generate-streaming", response_class=JSONResponse)
-async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
+async def tts_generate_streaming(
+    request: Request,
+    text: str = Form(...),
+    voice: str = Form(...),
+    language: str = Form(...),
+    output_file: str = Form(...),
+):
     try:
         output_file_path = this_dir / "outputs" / output_file
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
+        await generate_audio(
+            text,
+            voice,
+            language,
+            temperature,
+            repetition_penalty,
+            output_file_path,
+            streaming=False,
+        )
+        return JSONResponse(
+            content={"output_file_path": str(output_file)}, status_code=200
+        )
     except Exception as e:
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
+
 
 @app.put("/api/stop-generation")
 async def stop_generation_endpoint():
@@ -874,6 +988,7 @@ async def stop_generation_endpoint():
         tts_stop_generation = True
     return {"message": "Generation stopped"}
 
+
 ##############################
 #### Standard Generation ####
 ##############################
@@ -881,40 +996,90 @@ async def stop_generation_endpoint():
 # Check for PortAudio library on Linux
 try:
     import sounddevice as sd
-    sounddevice_installed=True
+
+    sounddevice_installed = True
 except OSError:
-    print(f"[{params['branding']}Startup] \033[91mInfo\033[0m PortAudio library not found. If you wish to play TTS in standalone mode through the API suite")
-    print(f"[{params['branding']}Startup] \033[91mInfo\033[0m please install PortAudio. This will not affect any other features or use of Alltalk.")
-    print(f"[{params['branding']}Startup] \033[91mInfo\033[0m If you don't know what the API suite is, then this message is nothing to worry about.")
-    sounddevice_installed=False
-    if sys.platform.startswith('linux'):
-        print(f"[{params['branding']}Startup] \033[91mInfo\033[0m On Linux, you can use the following command to install PortAudio:")
-        print(f"[{params['branding']}Startup] \033[91mInfo\033[0m sudo apt-get install portaudio19-dev")
+    print(
+        f"[{params['branding']}Startup] \033[91mInfo\033[0m PortAudio library not found. If you wish to play TTS in standalone mode through the API suite"
+    )
+    print(
+        f"[{params['branding']}Startup] \033[91mInfo\033[0m please install PortAudio. This will not affect any other features or use of Alltalk."
+    )
+    print(
+        f"[{params['branding']}Startup] \033[91mInfo\033[0m If you don't know what the API suite is, then this message is nothing to worry about."
+    )
+    sounddevice_installed = False
+    if sys.platform.startswith("linux"):
+        print(
+            f"[{params['branding']}Startup] \033[91mInfo\033[0m On Linux, you can use the following command to install PortAudio:"
+        )
+        print(
+            f"[{params['branding']}Startup] \033[91mInfo\033[0m sudo apt-get install portaudio19-dev"
+        )
 
 from typing import Union, Dict, List
 from pydantic import BaseModel, ValidationError, Field
+
 
 def play_audio(file_path, volume):
     data, fs = sf.read(file_path)
     sd.play(volume * data, fs)
     sd.wait()
 
+
 class Request(BaseModel):
     # Define the structure of the 'Request' class if needed
     pass
 
+
 class JSONInput(BaseModel):
-    text_input: str = Field(..., max_length=2000, description="text_input needs to be 2000 characters or less.")
-    text_filtering: str = Field(..., pattern="^(none|standard|html)$", description="text_filtering needs to be 'none', 'standard' or 'html'.")
-    character_voice_gen: str = Field(..., pattern="^.*\.wav$", description="character_voice_gen needs to be the name of a wav file e.g. mysample.wav.")
-    narrator_enabled: bool = Field(..., description="narrator_enabled needs to be true or false.")
-    narrator_voice_gen: str = Field(..., pattern="^.*\.wav$", description="narrator_voice_gen needs to be the name of a wav file e.g. mysample.wav.")
-    text_not_inside: str = Field(..., pattern="^(character|narrator)$", description="text_not_inside needs to be 'character' or 'narrator'.")
-    language: str = Field(..., pattern="^(ar|zh-cn|cs|nl|en|fr|de|hu|hi|it|ja|ko|pl|pt|ru|es|tr)$", description="language needs to be one of the following ar|zh-cn|cs|nl|en|fr|de|hu|hi|it|ja|ko|pl|pt|ru|es|tr.")
-    output_file_name: str = Field(..., pattern="^[a-zA-Z0-9_]+$", description="output_file_name needs to be the name without any special characters or file extension e.g. 'filename'")
-    output_file_timestamp: bool = Field(..., description="output_file_timestamp needs to be true or false.")
-    autoplay: bool = Field(..., description="autoplay needs to be a true or false value.")
-    autoplay_volume: float = Field(..., ge=0.1, le=1.0, description="autoplay_volume needs to be from 0.1 to 1.0")
+    text_input: str = Field(
+        ...,
+        max_length=2000,
+        description="text_input needs to be 2000 characters or less.",
+    )
+    text_filtering: str = Field(
+        ...,
+        pattern="^(none|standard|html)$",
+        description="text_filtering needs to be 'none', 'standard' or 'html'.",
+    )
+    character_voice_gen: str = Field(
+        ...,
+        pattern="^.*\.wav$",
+        description="character_voice_gen needs to be the name of a wav file e.g. mysample.wav.",
+    )
+    narrator_enabled: bool = Field(
+        ..., description="narrator_enabled needs to be true or false."
+    )
+    narrator_voice_gen: str = Field(
+        ...,
+        pattern="^.*\.wav$",
+        description="narrator_voice_gen needs to be the name of a wav file e.g. mysample.wav.",
+    )
+    text_not_inside: str = Field(
+        ...,
+        pattern="^(character|narrator)$",
+        description="text_not_inside needs to be 'character' or 'narrator'.",
+    )
+    language: str = Field(
+        ...,
+        pattern="^(ar|zh-cn|cs|nl|en|fr|de|hu|hi|it|ja|ko|pl|pt|ru|es|tr)$",
+        description="language needs to be one of the following ar|zh-cn|cs|nl|en|fr|de|hu|hi|it|ja|ko|pl|pt|ru|es|tr.",
+    )
+    output_file_name: str = Field(
+        ...,
+        pattern="^[a-zA-Z0-9_]+$",
+        description="output_file_name needs to be the name without any special characters or file extension e.g. 'filename'",
+    )
+    output_file_timestamp: bool = Field(
+        ..., description="output_file_timestamp needs to be true or false."
+    )
+    autoplay: bool = Field(
+        ..., description="autoplay needs to be a true or false value."
+    )
+    autoplay_volume: float = Field(
+        ..., ge=0.1, le=1.0, description="autoplay_volume needs to be from 0.1 to 1.0"
+    )
 
     @classmethod
     def validate_autoplay_volume(cls, value):
@@ -934,11 +1099,12 @@ class TTSGenerator:
         except ValidationError as e:
             return str(e)
 
+
 def process_text(text):
     # Normalize HTML encoded quotes
     text = html.unescape(text)
     # Replace ellipsis with a single dot
-    text = re.sub(r'\.{3,}', '.', text)
+    text = re.sub(r"\.{3,}", ".", text)
     # Pattern to identify combined narrator and character speech
     combined_pattern = r'(\*[^*"]+\*|"[^"*]+")'
     # List to hold parts of speech along with their type
@@ -949,39 +1115,41 @@ def process_text(text):
     for match in re.finditer(combined_pattern, text):
         # Add the text before the match, if any, as ambiguous
         if start < match.start():
-            ambiguous_text = text[start:match.start()].strip()
+            ambiguous_text = text[start : match.start()].strip()
             if ambiguous_text:
-                ordered_parts.append(('ambiguous', ambiguous_text))
+                ordered_parts.append(("ambiguous", ambiguous_text))
         # Add the matched part as either narrator or character
         matched_text = match.group(0)
-        if matched_text.startswith('*') and matched_text.endswith('*'):
-            ordered_parts.append(('narrator', matched_text.strip('*').strip()))
+        if matched_text.startswith("*") and matched_text.endswith("*"):
+            ordered_parts.append(("narrator", matched_text.strip("*").strip()))
         elif matched_text.startswith('"') and matched_text.endswith('"'):
-            ordered_parts.append(('character', matched_text.strip('"').strip()))
+            ordered_parts.append(("character", matched_text.strip('"').strip()))
         else:
             # In case of mixed or improperly formatted parts
-            if '*' in matched_text:
-                ordered_parts.append(('narrator', matched_text.strip('*').strip('"')))
+            if "*" in matched_text:
+                ordered_parts.append(("narrator", matched_text.strip("*").strip('"')))
             else:
-                ordered_parts.append(('character', matched_text.strip('"').strip('*')))
+                ordered_parts.append(("character", matched_text.strip('"').strip("*")))
         # Update the start of the next segment
         start = match.end()
     # Add any remaining text after the last match as ambiguous
     if start < len(text):
         ambiguous_text = text[start:].strip()
         if ambiguous_text:
-            ordered_parts.append(('ambiguous', ambiguous_text))
+            ordered_parts.append(("ambiguous", ambiguous_text))
     return ordered_parts
 
+
 def standard_filtering(text_input):
-    text_output = (text_input
-                        .replace("***", "")
-                        .replace("**", "")
-                        .replace("*", "")
-                        .replace("\n\n", "\n")
-                        .replace("&#x27;", "'")
-                        )
+    text_output = (
+        text_input.replace("***", "")
+        .replace("**", "")
+        .replace("*", "")
+        .replace("\n\n", "\n")
+        .replace("&#x27;", "'")
+    )
     return text_output
+
 
 def combine(output_file_timestamp, output_file_name, audio_files):
     audio = np.array([])
@@ -1001,11 +1169,15 @@ def combine(output_file_timestamp, output_file_name, audio_files):
         return None, None
     if output_file_timestamp:
         timestamp = int(time.time())
-        output_file_path = os.path.join(this_dir / "outputs" / f'{output_file_name}_{timestamp}_combined.wav')
+        output_file_path = os.path.join(
+            this_dir / "outputs" / f"{output_file_name}_{timestamp}_combined.wav"
+        )
         output_file_url = f'http://{params["ip_address"]}:{params["port_number"]}/audio/{output_file_name}_{timestamp}_combined.wav'
         output_cache_url = f'http://{params["ip_address"]}:{params["port_number"]}/audiocache/{output_file_name}_{timestamp}_combined.wav'
     else:
-        output_file_path = os.path.join(this_dir / "outputs" / f'{output_file_name}_combined.wav')
+        output_file_path = os.path.join(
+            this_dir / "outputs" / f"{output_file_name}_combined.wav"
+        )
         output_file_url = f'http://{params["ip_address"]}:{params["port_number"]}/audio/{output_file_name}_combined.wav'
         output_cache_url = f'http://{params["ip_address"]}:{params["port_number"]}/audiocache/{output_file_name}_combined.wav'
     try:
@@ -1017,6 +1189,7 @@ def combine(output_file_timestamp, output_file_name, audio_files):
         # Handle exceptions (e.g., failed to write output file)
         return None, None
     return output_file_path, output_file_url, output_cache_url
+
 
 # Generation API (separate from text-generation-webui)
 @app.post("/api/tts-generate", response_class=JSONResponse)
@@ -1054,7 +1227,10 @@ async def tts_generate(
         if JSONresult is None:
             pass
         else:
-            print(f"[{params['branding']}API] \033[91mError with API request:\033[0m", JSONresult)
+            print(
+                f"[{params['branding']}API] \033[91mError with API request:\033[0m",
+                JSONresult,
+            )
             return JSONResponse(content={"error": JSONresult}, status_code=400)
         if narrator_enabled:
             if params["low_vram"] and device == "cpu":
@@ -1067,32 +1243,64 @@ async def tts_generate(
                 if len(part.strip()) <= 3:
                     continue
                 # Determine the voice to use based on the part type
-                if part_type == 'narrator':
+                if part_type == "narrator":
                     voice_to_use = narrator_voice_gen
-                    print(f"[{params['branding']}TTSGen] \033[92mNarrator\033[0m")  # Green
-                elif part_type == 'character':
+                    print(
+                        f"[{params['branding']}TTSGen] \033[92mNarrator\033[0m"
+                    )  # Green
+                elif part_type == "character":
                     voice_to_use = character_voice_gen
-                    print(f"[{params['branding']}TTSGen] \033[36mCharacter\033[0m")  # Yellow
+                    print(
+                        f"[{params['branding']}TTSGen] \033[36mCharacter\033[0m"
+                    )  # Yellow
                 else:
                     # Handle ambiguous parts based on user preference
-                    voice_to_use = character_voice_gen if text_not_inside == "character" else narrator_voice_gen
-                    voice_description = "\033[36mCharacter (Text-not-inside)\033[0m" if text_not_inside == "character" else "\033[92mNarrator (Text-not-inside)\033[0m"
+                    voice_to_use = (
+                        character_voice_gen
+                        if text_not_inside == "character"
+                        else narrator_voice_gen
+                    )
+                    voice_description = (
+                        "\033[36mCharacter (Text-not-inside)\033[0m"
+                        if text_not_inside == "character"
+                        else "\033[92mNarrator (Text-not-inside)\033[0m"
+                    )
                     print(f"[{params['branding']}TTSGen] {voice_description}")
                 # Replace multiple exclamation marks, question marks, or other punctuation with a single instance
-                cleaned_part = re.sub(r'([!?.\u3002\uFF1F\uFF01\uFF0C])\1+', r'\1', part)
+                cleaned_part = re.sub(
+                    r"([!?.\u3002\uFF1F\uFF01\uFF0C])\1+", r"\1", part
+                )
                 # Replace "Chinese ellipsis" with a single dot
                 cleaned_part = re.sub(r"\u2026{1,2}", ". ", cleaned_part)
                 # Further clean to remove any other unwanted characters
-                cleaned_part = re.sub(r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]', '', cleaned_part)
+                cleaned_part = re.sub(
+                    r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]',
+                    "",
+                    cleaned_part,
+                )
                 # Remove all newline characters (single or multiple)
-                cleaned_part = re.sub(r'\n+', ' ', cleaned_part)
-                output_file = this_dir / "outputs" / f"{output_file_name}_{uuid.uuid4()}_{int(time.time())}.wav"
+                cleaned_part = re.sub(r"\n+", " ", cleaned_part)
+                output_file = (
+                    this_dir
+                    / "outputs"
+                    / f"{output_file_name}_{uuid.uuid4()}_{int(time.time())}.wav"
+                )
                 output_file_str = output_file.as_posix()
-                response = await generate_audio(cleaned_part, voice_to_use, language,temperature, repetition_penalty, output_file_str, streaming)
+                response = await generate_audio(
+                    cleaned_part,
+                    voice_to_use,
+                    language,
+                    temperature,
+                    repetition_penalty,
+                    output_file_str,
+                    streaming,
+                )
                 audio_path = output_file_str
                 audio_files_all_paragraphs.append(audio_path)
             # Combine audio files across paragraphs
-            output_file_path, output_file_url, output_cache_url = combine(output_file_timestamp, output_file_name, audio_files_all_paragraphs)
+            output_file_path, output_file_url, output_cache_url = combine(
+                output_file_timestamp, output_file_name, audio_files_all_paragraphs
+            )
             tts_narrator_generatingtts = False
             # Move model back to cpu system ram if needed.
             if params["low_vram"] and device == "cuda":
@@ -1107,7 +1315,11 @@ async def tts_generate(
                 hashed_uuid = hash_object.hexdigest()
                 # Truncate to the desired length, for example, 16 characters
                 short_uuid = hashed_uuid[:5]
-                output_file_path = this_dir / "outputs" / f"{output_file_name}_{timestamp}{short_uuid}.wav"
+                output_file_path = (
+                    this_dir
+                    / "outputs"
+                    / f"{output_file_name}_{timestamp}{short_uuid}.wav"
+                )
                 output_file_url = f'http://{params["ip_address"]}:{params["port_number"]}/audio/{output_file_name}_{timestamp}{short_uuid}.wav'
                 output_cache_url = f'http://{params["ip_address"]}:{params["port_number"]}/audiocache/{output_file_name}_{timestamp}{short_uuid}.wav'
             else:
@@ -1116,33 +1328,64 @@ async def tts_generate(
                 output_cache_url = f'http://{params["ip_address"]}:{params["port_number"]}/audiocache/{output_file_name}.wav'
             if text_filtering == "html":
                 cleaned_string = html.unescape(standard_filtering(text_input))
-                cleaned_string = re.sub(r'([!?.\u3002\uFF1F\uFF01\uFF0C])\1+', r'\1', text_input)
+                cleaned_string = re.sub(
+                    r"([!?.\u3002\uFF1F\uFF01\uFF0C])\1+", r"\1", text_input
+                )
                 # Replace "Chinese ellipsis" with a single dot
                 cleaned_string = re.sub(r"\u2026{1,2}", ". ", cleaned_string)
                 # Further clean to remove any other unwanted characters
-                cleaned_string = re.sub(r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]', '', cleaned_string)
+                cleaned_string = re.sub(
+                    r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]',
+                    "",
+                    cleaned_string,
+                )
                 # Remove all newline characters (single or multiple)
-                cleaned_string = re.sub(r'\n+', ' ', cleaned_string)
+                cleaned_string = re.sub(r"\n+", " ", cleaned_string)
             elif text_filtering == "standard":
-                cleaned_string = re.sub(r'([!?.\u3002\uFF1F\uFF01\uFF0C])\1+', r'\1', text_input)
+                cleaned_string = re.sub(
+                    r"([!?.\u3002\uFF1F\uFF01\uFF0C])\1+", r"\1", text_input
+                )
                 # Replace "Chinese ellipsis" with a single dot
                 cleaned_string = re.sub(r"\u2026{1,2}", ". ", cleaned_string)
                 # Further clean to remove any other unwanted characters
-                cleaned_string = re.sub(r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]', '', cleaned_string)
+                cleaned_string = re.sub(
+                    r'[^a-zA-Z0-9\s.,;:!?\-\'"$\u0400-\u04FF\u00C0-\u00FF\u0150\u0151\u0170\u0171\u0900-\u097F\u2018\u2019\u201C\u201D\u3001\u3002\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F\uFF01\uFF0c\uFF1A\uFF1B\uFF1F]',
+                    "",
+                    cleaned_string,
+                )
                 # Remove all newline characters (single or multiple)
-                cleaned_string = re.sub(r'\n+', ' ', cleaned_string)
+                cleaned_string = re.sub(r"\n+", " ", cleaned_string)
             else:
                 cleaned_string = text_input
-            response = await generate_audio(cleaned_string, character_voice_gen, language, temperature, repetition_penalty, output_file_path, streaming)
+            response = await generate_audio(
+                cleaned_string,
+                character_voice_gen,
+                language,
+                temperature,
+                repetition_penalty,
+                output_file_path,
+                streaming,
+            )
         if sounddevice_installed == False or streaming == True:
             autoplay = False
         if autoplay:
-            play_audio(output_file_path, autoplay_volume)       
+            play_audio(output_file_path, autoplay_volume)
         if streaming:
             return StreamingResponse(response, media_type="audio/wav")
-        return JSONResponse(content={"status": "generate-success", "output_file_path": str(output_file_path), "output_file_url": str(output_file_url), "output_cache_url": str(output_cache_url)}, status_code=200)
+        return JSONResponse(
+            content={
+                "status": "generate-success",
+                "output_file_path": str(output_file_path),
+                "output_file_url": str(output_file_url),
+                "output_cache_url": str(output_cache_url),
+            },
+            status_code=200,
+        )
     except Exception as e:
-        return JSONResponse(content={"status": "generate-failure", "error": "An error occurred"}, status_code=500)
+        return JSONResponse(
+            content={"status": "generate-failure", "error": "An error occurred"},
+            status_code=500,
+        )
 
 
 ##########################
@@ -1150,12 +1393,13 @@ async def tts_generate(
 ##########################
 # Define the available models
 models_available = [
-    {"name": "Coqui", "model_name": "API TTS"},
-    {"name": "Coqui", "model_name": "API Local"},
-    {"name": "Coqui", "model_name": "XTTSv2 Local"}
+    {"name": "XTTS", "model_name": "API TTS"},
+    {"name": "XTTS", "model_name": "API Local"},
+    {"name": "XTTS", "model_name": "XTTSv2 Local"},
 ]
 
-@app.get('/api/currentsettings')
+
+@app.get("/api/currentsettings")
 def get_current_settings():
     # Determine the current model loaded
     if params["tts_method_api_tts"]:
@@ -1173,21 +1417,27 @@ def get_current_settings():
         "deepspeed_available": deepspeed_available,
         "deepspeed_status": params["deepspeed_activate"],
         "low_vram_status": params["low_vram"],
-        "finetuned_model": finetuned_model
+        "finetuned_model": finetuned_model,
     }
     return settings  # Automatically converted to JSON by Fas
+
 
 #############################
 #### Word Add-in Sharing ####
 #############################
 # Mount the static files from the 'word_addin' directory
-app.mount("/api/word_addin", StaticFiles(directory=os.path.join(this_dir / 'system' / 'word_addin')), name="word_addin")
+app.mount(
+    "/api/word_addin",
+    StaticFiles(directory=os.path.join(this_dir / "system" / "word_addin")),
+    name="word_addin",
+)
 
 #############################################
 #### TTS Generator Comparision Endpoints ####
 #############################################
 import subprocess
 import aiofiles
+
 
 class TTSItem(BaseModel):
     id: int
@@ -1196,8 +1446,10 @@ class TTSItem(BaseModel):
     characterVoice: str
     language: str
 
+
 class TTSData(BaseModel):
     ttsList: List[TTSItem]
+
 
 @app.post("/api/save-tts-data")
 async def save_tts_data(tts_data: List[TTSItem]):
@@ -1205,11 +1457,13 @@ async def save_tts_data(tts_data: List[TTSItem]):
     tts_data_list = [item.dict() for item in tts_data]
     # Serialize the list of dictionaries to a JSON string
     tts_data_json = json.dumps(tts_data_list, indent=4)
-    async with aiofiles.open(this_dir / "outputs" / "ttsList.json", 'w') as f:
+    async with aiofiles.open(this_dir / "outputs" / "ttsList.json", "w") as f:
         await f.write(tts_data_json)
     return {"message": "Data saved successfully"}
 
+
 import sys
+
 
 @app.get("/api/trigger-analysis")
 async def trigger_analysis(threshold: int = Query(default=98)):
@@ -1218,7 +1472,17 @@ async def trigger_analysis(threshold: int = Query(default=98)):
     env["PATH"] = os.path.join(venv_path, "bin") + ":" + env["PATH"]
     ttslist_path = this_dir / "outputs" / "ttsList.json"
     wavfile_path = this_dir / "outputs"
-    subprocess.run(["python", "tts_diff.py", f"--threshold={threshold}", f"--ttslistpath={ttslist_path}", f"--wavfilespath={wavfile_path}"], cwd=this_dir / "system" / "tts_diff", env=env)
+    subprocess.run(
+        [
+            "python",
+            "tts_diff.py",
+            f"--threshold={threshold}",
+            f"--ttslistpath={ttslist_path}",
+            f"--wavfilespath={wavfile_path}",
+        ],
+        cwd=this_dir / "system" / "tts_diff",
+        env=env,
+    )
     # Read the analysis summary
     try:
         with open(this_dir / "outputs" / "analysis_summary.json", "r") as summary_file:
@@ -1226,6 +1490,7 @@ async def trigger_analysis(threshold: int = Query(default=98)):
     except FileNotFoundError:
         summary_data = {"error": "Analysis summary file not found."}
     return {"message": "Analysis Completed", "summary": summary_data}
+
 
 #################################################
 #### TTS Generator SRT Subtitiles generation ####
@@ -1237,13 +1502,27 @@ async def srt_generation():
     env["PATH"] = os.path.join(venv_path, "bin") + ":" + env["PATH"]
     ttslist_path = this_dir / "outputs" / "ttsList.json"
     wavfile_path = this_dir / "outputs"
-    subprocess.run(["python", "tts_srt.py", f"--ttslistpath={ttslist_path}", f"--wavfilespath={wavfile_path}"], cwd=this_dir / "system" / "tts_srt", env=env)
-    
+    subprocess.run(
+        [
+            "python",
+            "tts_srt.py",
+            f"--ttslistpath={ttslist_path}",
+            f"--wavfilespath={wavfile_path}",
+        ],
+        cwd=this_dir / "system" / "tts_srt",
+        env=env,
+    )
+
     srt_file_path = this_dir / "outputs" / "subtitles.srt"
     if not srt_file_path.exists():
         raise HTTPException(status_code=404, detail="Subtitle file not found.")
-    
-    return FileResponse(path=srt_file_path, filename="subtitles.srt", media_type='application/octet-stream')
+
+    return FileResponse(
+        path=srt_file_path,
+        filename="subtitles.srt",
+        media_type="application/octet-stream",
+    )
+
 
 ###################################################
 #### Webserver Startup & Initial model Loading ####
@@ -1254,12 +1533,14 @@ template = templates.get_template("admin.html")
 # Render the template with the dynamic values
 rendered_html = template.render(params=params)
 
+
 ###############################
 #### Internal script ready ####
 ###############################
 @app.get("/ready")
 async def ready():
     return Response("Ready endpoint")
+
 
 ############################
 #### External API ready ####
@@ -1268,9 +1549,11 @@ async def ready():
 async def ready():
     return Response("Ready")
 
+
 @app.get("/")
 async def read_root():
     return HTMLResponse(content=rendered_html, status_code=200)
+
 
 # Start Uvicorn Webserver
 host_parameter = params["ip_address"]
