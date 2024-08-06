@@ -12,3 +12,4 @@ models.json
 diagnostics.log
 __pycache__/
 alltalk_environment/
+.env*
